@@ -1,2 +1,2 @@
-# 12_floppy-disk_project_be
+# 12-marong-BE
 백엔드
