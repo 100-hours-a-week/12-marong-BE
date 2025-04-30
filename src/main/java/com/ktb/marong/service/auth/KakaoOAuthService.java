@@ -129,12 +129,27 @@ public class KakaoOAuthService {
             Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
 
             String providerId = String.valueOf(attributes.get("id"));
-            String email = (String) kakaoAccount.get("email");
+
+            // 이메일 추출 (권한이 없는 경우 대체 값 사용)
+            String email = null;
+            if (kakaoAccount.containsKey("email") && kakaoAccount.get("email") != null) {
+                email = (String) kakaoAccount.get("email");
+            } else {
+                // 이메일 권한이 없는 경우 providerId를 사용하여 대체 이메일 생성
+                email = providerId + "@kakao.marong.com";
+                log.info("카카오 이메일 권한이 없어 대체 이메일 생성: {}", email);
+            }
+
             String nickname = (String) profile.get("nickname");
             String profileImageUrl = (String) profile.get("profile_image_url");
 
             // 사용자 정보 DTO 생성
-            return new KakaoUserInfoDto(providerId, email, nickname, profileImageUrl);
+            return KakaoUserInfoDto.builder()
+                    .providerId(providerId)
+                    .email(email)
+                    .nickname(nickname)
+                    .profileImageUrl(profileImageUrl)
+                    .build();
         } catch (Exception e) {
             log.error("카카오 사용자 정보 요청 실패", e);
             throw new RuntimeException("카카오 사용자 정보 요청 실패: " + e.getMessage());
