@@ -31,7 +31,8 @@ public enum ErrorCode {
 
     // 설문조사 관련 에러
     SURVEY_NOT_FOUND(404, "설문 정보가 존재하지 않습니다."),
-    INVALID_SURVEY_FORMAT(400, "입력 형식이 잘못되었습니다.");
+    INVALID_SURVEY_FORMAT(400, "입력 형식이 잘못되었습니다."),
+    SURVEY_ALREADY_SUBMITTED(409, "이미 최초 설문 조사를 제출한 사용자입니다.");
 
     private final int status;
     private final String message;
