@@ -1,6 +1,5 @@
 package com.ktb.marong.dto.response.auth;
 
-import com.ktb.marong.domain.user.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
