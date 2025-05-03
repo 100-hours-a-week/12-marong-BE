@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -30,10 +32,10 @@ public class FeedController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFeed(
             @CurrentUser Long userId,
-            @RequestPart(value = "missionId") Long missionId,
-            @RequestPart(value = "manittoName") String manittoName,
-            @RequestPart(value = "content") String content,
-            @RequestPart(value = "image", required = false) MultipartFile image) {
+            @RequestParam("missionId") Long missionId,
+            @RequestParam("manittoName") String manittoName,
+            @RequestParam("content") String content,
+            @RequestParam(value = "image", required = false) MultipartFile image) {
 
         log.info("게시글 업로드 요청: userId={}, missionId={}", userId, missionId);
 
@@ -42,7 +44,7 @@ public class FeedController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        feedId,
+                        Map.of("feedId", feedId),
                         "feed_uploaded",
                         null
                 ));
