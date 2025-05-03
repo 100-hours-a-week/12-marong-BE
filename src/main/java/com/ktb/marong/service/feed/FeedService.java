@@ -12,7 +12,7 @@ import com.ktb.marong.dto.response.feed.PostResponseDto;
 import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.*;
-import com.ktb.marong.service.file.FileService;
+import com.ktb.marong.service.file.FileUploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -35,7 +37,7 @@ public class FeedService {
     private final UserRepository userRepository;
     private final MissionRepository missionRepository;
     private final AnonymousNameRepository anonymousNameRepository;
-    private final FileService fileService;
+    private final FileUploadService fileUploadService;
 
     /**
      * 게시글 업로드
@@ -55,14 +57,23 @@ public class FeedService {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED);
         }
 
-        // 사용자의 익명 이름 조회 (MVP에서는 그룹 ID가 1로 고정)
+//        // 사용자의 익명 이름 조회 (MVP에서는 그룹 ID가 1로 고정) -> 익명 이름 조회 실패 시 에러코드 출력
+//        String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
+//                .orElseThrow(() -> new CustomException(ErrorCode.ANONYMOUS_NAME_NOT_FOUND));
+
+        // 익명 이름 조회할 때 없으면 기본값 반환
         String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.ANONYMOUS_NAME_NOT_FOUND));
+                .orElse("익명의 " + getRandomAnimal()); // 없으면 기본 이름 생성
 
         // 이미지 업로드 처리
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
-            imageUrl = fileService.uploadImage(image, "feeds");
+            try {
+                imageUrl = fileUploadService.uploadFile(image, "feeds"); // 인터페이스 메서드 호출
+            } catch (IOException e) {
+                log.error("이미지 업로드 실패: {}", e.getMessage());
+                throw new CustomException(ErrorCode.FILE_UPLOAD_ERROR);
+            }
         }
 
         // 게시글 생성
@@ -82,6 +93,12 @@ public class FeedService {
         updateMissionStatus(userId, mission.getId());
 
         return savedPost.getId();
+    }
+
+    // 익명 이름 기본값 반환을 위한 랜덤 동물 이름 생성 메소드 추가
+    private String getRandomAnimal() {
+        String[] animals = {"판다", "고양이", "강아지", "호랑이", "코끼리", "원숭이", "토끼"};
+        return animals[new Random().nextInt(animals.length)];
     }
 
     /**
