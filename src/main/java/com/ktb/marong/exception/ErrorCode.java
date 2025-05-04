@@ -32,7 +32,23 @@ public enum ErrorCode {
     // 설문조사 관련 에러
     SURVEY_NOT_FOUND(404, "설문 정보가 존재하지 않습니다."),
     INVALID_SURVEY_FORMAT(400, "입력 형식이 잘못되었습니다."),
-    SURVEY_ALREADY_SUBMITTED(409, "이미 최초 설문 조사를 제출한 사용자입니다.");
+    SURVEY_ALREADY_SUBMITTED(409, "이미 최초 설문 조사를 제출한 사용자입니다."),
+
+    // 게시글 관련 에러
+    FEED_NOT_FOUND(404, "게시글을 찾을 수 없습니다."),
+    MISSION_ALREADY_COMPLETED(409, "이미 해당 미션을 완료했습니다."),
+    ANONYMOUS_NAME_NOT_FOUND(404, "익명 이름을 찾을 수 없습니다."),
+    ALREADY_LIKED(409, "이미 좋아요한 게시글입니다."),
+    NOT_LIKED(409, "좋아요하지 않은 게시글입니다."),
+
+    // 파일 관련 에러
+    EMPTY_FILE(400, "빈 파일은 업로드할 수 없습니다."),
+    INVALID_FILE_FORMAT(400, "지원하지 않는 파일 형식입니다."),
+    FILE_TOO_LARGE(413, "업로드 가능한 파일 크기를 초과했습니다."),
+    FILE_UPLOAD_ERROR(500, "파일 업로드에 실패했습니다."),
+
+    // 미션 관련 에러
+    MISSION_NOT_FOUND(404, "미션을 찾을 수 없습니다.");
 
     private final int status;
     private final String message;

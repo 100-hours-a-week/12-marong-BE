@@ -1,3 +1,6 @@
+# Application 설정
+spring.application.name=marong
+
 # application.properties.template
 # 데이터베이스 설정
 spring.datasource.url=jdbc:mysql://${DB_HOST:localhost}:3306/${DB_NAME:marong}?useSSL=false&serverTimezone=UTC
@@ -44,3 +47,18 @@ spring.security.oauth2.client.provider.kakao.user-name-attribute=id
 logging.level.org.hibernate.SQL=debug
 logging.level.org.hibernate.type=trace
 logging.level.com.ktb.marong=debug
+
+# JPA 배치 처리 최적화 설정
+spring.jpa.properties.hibernate.order_inserts=true
+spring.jpa.properties.hibernate.order_updates=true
+spring.jpa.properties.hibernate.jdbc.batch_size=50
+
+# AWS S3 설정
+cloud.aws.credentials.access-key=${AWS_ACCESS_KEY}
+cloud.aws.credentials.secret-key=${AWS_SECRET_KEY}
+cloud.aws.region.static=ap-northeast-2
+cloud.aws.stack.auto=false
+cloud.aws.s3.bucket=${S3_BUCKET_NAME}
+
+spring.jpa.defer-datasource-initialization=true
+spring.sql.init.mode=always
