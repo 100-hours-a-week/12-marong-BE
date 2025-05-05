@@ -49,12 +49,11 @@ public class ManittoService {
         // 현재 주차에 해당하는 마니또 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
 
-        // 주차 매칭 정보가 없을 경우 기본 응답 제공 (에러 대신)
-        Manitto manitto = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek)
-                .orElse(null);
+        // findByGiverIdAndGroupIdAndWeek가 리스트를 반환하므로 첫 번째 요소를 가져옴
+        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
-        if (manitto == null) {
-            // 데이터가 없으면 기본 정보 반환
+        // 매칭 정보가 없을 경우 기본 응답
+        if (manittoList.isEmpty()) {
             return ManittoInfoResponseDto.builder()
                     .manitto(ManittoInfoResponseDto.ManittoDto.builder()
                             .name("아직 매칭된 마니또가 없습니다")
@@ -63,6 +62,9 @@ public class ManittoService {
                             .build())
                     .build();
         }
+
+        // 여러 매칭 중 첫 번째 매칭 정보 사용 (또는 다른 로직으로 선택)
+        Manitto manitto = manittoList.get(0);
 
         // 다음 공개까지 남은 시간 계산 (금요일 오후 5시 기준)
         String remainingTime = calculateRemainingTimeUntilReveal();
