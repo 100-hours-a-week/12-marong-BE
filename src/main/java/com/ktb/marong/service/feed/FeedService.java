@@ -37,6 +37,8 @@ public class FeedService {
     private final UserRepository userRepository;
     private final MissionRepository missionRepository;
     private final AnonymousNameRepository anonymousNameRepository;
+    private final UserMissionRepository userMissionRepository;
+    private final ManittoRepository manittoRepository;
     private final FileUploadService fileUploadService;
 
     /**
@@ -51,6 +53,18 @@ public class FeedService {
         // 미션 조회
         Mission mission = missionRepository.findById(requestDto.getMissionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND));
+
+        // 현재 주차 계산
+        int currentWeek = WeekCalculator.getCurrentWeek();
+
+        // 미션이 현재 사용자에게 할당된 것인지 확인
+        UserMission userMission = userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, requestDto.getMissionId(), currentWeek)
+                .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_ASSIGNED, "할당되지 않은 미션입니다."));
+
+        // 미션 상태가 진행 중인지 확인
+        if (!"ing".equals(userMission.getStatus())) {
+            throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이미 완료된 미션입니다.");
+        }
 
         // 해당 미션을 이미 수행했는지 확인
         if (postRepository.countByUserIdAndMissionId(userId, requestDto.getMissionId()) > 0) {
