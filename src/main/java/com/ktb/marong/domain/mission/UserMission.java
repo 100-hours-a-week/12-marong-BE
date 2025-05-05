@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -38,6 +39,9 @@ public class UserMission {
     @Column(name = "week", nullable = false)
     private Integer week;
 
+    @Column(name = "assigned_date", nullable = false)
+    private LocalDate assignedDate;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -47,11 +51,12 @@ public class UserMission {
     private LocalDateTime updatedAt;
 
     @Builder
-    public UserMission(User user, Long groupId, Mission mission, Integer week) {
+    public UserMission(User user, Long groupId, Mission mission, Integer week, LocalDate assignedDate) {
         this.user = user;
         this.groupId = groupId;
         this.mission = mission;
         this.week = week;
+        this.assignedDate = assignedDate != null ? assignedDate : LocalDate.now();
     }
 
     /**
