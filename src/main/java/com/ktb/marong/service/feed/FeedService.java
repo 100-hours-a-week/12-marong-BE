@@ -71,9 +71,11 @@ public class FeedService {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED);
         }
 
-//        // 사용자의 익명 이름 조회 (MVP에서는 그룹 ID가 1로 고정) -> 익명 이름 조회 실패 시 에러코드 출력
-//        String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
-//                .orElseThrow(() -> new CustomException(ErrorCode.ANONYMOUS_NAME_NOT_FOUND));
+        // 현재 사용자의 마니또 정보 조회
+        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        if (manittoList.isEmpty()) {
+            throw new CustomException(ErrorCode.MANITTO_NOT_FOUND);
+        }
 
         Manitto manitto = manittoList.get(0);
         String manittoName = manitto.getReceiver().getNickname();  // 서버에서 manittoName 설정
@@ -98,7 +100,7 @@ public class FeedService {
                 .user(user)
                 .mission(mission)
                 .anonymousSnapshotName(anonymousName)
-                .manittoName(requestDto.getManittoName())
+                .manittoName(manittoName)
                 .content(requestDto.getContent())
                 .imageUrl(imageUrl)
                 .build();
