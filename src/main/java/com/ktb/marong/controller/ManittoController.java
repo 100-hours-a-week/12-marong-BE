@@ -1,5 +1,6 @@
 package com.ktb.marong.controller;
 
+import com.ktb.marong.domain.mission.UserMission;
 import com.ktb.marong.dto.response.common.ApiResponse;
 import com.ktb.marong.dto.response.manitto.ManittoInfoResponseDto;
 import com.ktb.marong.security.CurrentUser;
@@ -8,8 +9,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -48,6 +52,26 @@ public class ManittoController {
         return ResponseEntity.ok(ApiResponse.success(
                 response,
                 "mission_status_retrieved",
+                null
+        ));
+    }
+
+    /**
+     * 새 미션 할당
+     */
+    @PostMapping("/missions/assign")
+    public ResponseEntity<?> assignNewMission(@CurrentUser Long userId) {
+        log.info("새 미션 할당 요청: userId={}", userId);
+
+        UserMission newMission = manittoService.assignNewMission(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                Map.of(
+                        "missionId", newMission.getMission().getId(),
+                        "title", newMission.getMission().getTitle(),
+                        "description", newMission.getMission().getDescription()
+                ),
+                "mission_assigned",
                 null
         ));
     }
