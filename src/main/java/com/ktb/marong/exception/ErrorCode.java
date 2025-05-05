@@ -48,7 +48,11 @@ public enum ErrorCode {
     FILE_UPLOAD_ERROR(500, "파일 업로드에 실패했습니다."),
 
     // 미션 관련 에러
-    MISSION_NOT_FOUND(404, "미션을 찾을 수 없습니다.");
+    MISSION_NOT_FOUND(404, "미션을 찾을 수 없습니다."),
+
+    // 마니또 관련 에러 추가
+    MANITTO_NOT_FOUND(404, "현재 매칭된 마니또가 없습니다."),
+    MISSION_STATUS_NOT_FOUND(404, "진행 중인 미션이 없습니다.");
 
     private final int status;
     private final String message;
