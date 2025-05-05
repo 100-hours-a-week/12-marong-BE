@@ -1,8 +1,11 @@
 package com.ktb.marong.service.feed;
 
+import com.ktb.marong.common.util.WeekCalculator;
 import com.ktb.marong.domain.feed.Post;
 import com.ktb.marong.domain.feed.PostLike;
+import com.ktb.marong.domain.manitto.Manitto;
 import com.ktb.marong.domain.mission.Mission;
+import com.ktb.marong.domain.mission.UserMission;
 import com.ktb.marong.domain.user.User;
 import com.ktb.marong.dto.request.feed.PostLikeRequestDto;
 import com.ktb.marong.dto.request.feed.PostRequestDto;
@@ -191,7 +194,13 @@ public class FeedService {
      */
     private void updateMissionStatus(Long userId, Long missionId) {
         // UserMission 테이블에서 미션 상태를 'completed'로 업데이트
-        // MVP에서는 간소화하여 실제 구현 생략 가능
-        log.info("미션 완료 상태 업데이트: userId={}, missionId={}", userId, missionId);
+        int currentWeek = WeekCalculator.getCurrentWeek();
+
+        userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, missionId, currentWeek)
+                .ifPresent(userMission -> {
+                    userMission.complete();
+                    userMissionRepository.save(userMission);
+                    log.info("미션 완료 상태 업데이트: userId={}, missionId={}", userId, missionId);
+                });
     }
 }
