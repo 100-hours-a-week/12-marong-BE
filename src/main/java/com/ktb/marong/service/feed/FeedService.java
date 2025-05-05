@@ -61,8 +61,11 @@ public class FeedService {
 //        String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
 //                .orElseThrow(() -> new CustomException(ErrorCode.ANONYMOUS_NAME_NOT_FOUND));
 
-        // 익명 이름 조회할 때 없으면 기본값 반환
-        String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
+        Manitto manitto = manittoList.get(0);
+        String manittoName = manitto.getReceiver().getNickname();  // 서버에서 manittoName 설정
+
+        // 익명 이름 조회 - 현재 주차 정보 추가
+        String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndWeek(userId, currentWeek)
                 .orElse("익명의 " + getRandomAnimal()); // 없으면 기본 이름 생성
 
         // 이미지 업로드 처리
