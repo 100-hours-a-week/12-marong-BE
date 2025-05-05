@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -47,8 +48,21 @@ public class ManittoService {
 
         // 현재 주차에 해당하는 마니또 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
+
+        // 주차 매칭 정보가 없을 경우 기본 응답 제공 (에러 대신)
         Manitto manitto = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek)
-                .orElseThrow(() -> new CustomException(ErrorCode.MANITTO_NOT_FOUND, "현재 매칭된 마니또가 없습니다."));
+                .orElse(null);
+
+        if (manitto == null) {
+            // 데이터가 없으면 기본 정보 반환
+            return ManittoInfoResponseDto.builder()
+                    .manitto(ManittoInfoResponseDto.ManittoDto.builder()
+                            .name("아직 매칭된 마니또가 없습니다")
+                            .profileImage(null)
+                            .remainingTime(calculateRemainingTimeUntilReveal())
+                            .build())
+                    .build();
+        }
 
         // 다음 공개까지 남은 시간 계산 (금요일 오후 5시 기준)
         String remainingTime = calculateRemainingTimeUntilReveal();
@@ -84,24 +98,17 @@ public class ManittoService {
             // 미션 수행 여부는 게시글 작성 여부로 판단
             int postCount = postRepository.countByUserIdAndMissionId(userId, userMission.getMission().getId());
 
-            if (postCount > 0) {
+            if (postCount > 0 || "completed".equals(userMission.getStatus())) {
                 completedMissions.add(userMission);
-                // 미션 상태 업데이트 (별도 트랜잭션 필요)
-                if ("ing".equals(userMission.getStatus())) {
-                    updateMissionStatus(userMission.getId());
-                }
             } else {
                 inProgressMissions.add(userMission);
             }
         }
 
-        // 진행 중인 미션이 없고 완료된 미션이 있으면 새 미션 할당 (하루 1개)
-        if (inProgressMissions.isEmpty() && userMissions.size() < 5) { // 최대 5개 (일주일 중 영업일인 5일)
-            Mission newMission = getAvailableMission(userMissions);
-            if (newMission != null) {
-                UserMission userMission = assignMissionToUser(user, newMission, currentWeek);
-                inProgressMissions.add(userMission);
-            }
+        // 진행 중인 미션이 없고 전체 미션이 5개 미만이면 새 미션 할당이 필요하다는 로그만 남김
+        if (inProgressMissions.isEmpty() && userMissions.size() < 5) {
+            log.info("새로운 미션 할당이 필요합니다. 사용자 ID: {}", userId);
+            // 여기서는 미션을 생성하지 않고, 필요하다는 정보만 로깅
         }
 
         // DTO 변환
@@ -132,7 +139,45 @@ public class ManittoService {
     }
 
     /**
-     * 미션 완료 상태 업데이트 (별도 트랜잭션)
+     * 새 미션 할당 - 하루 1개 제한 추가
+     */
+    @Transactional
+    public UserMission assignNewMission(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        int currentWeek = WeekCalculator.getCurrentWeek();
+        LocalDate today = LocalDate.now();
+
+        // 오늘 이미 할당된 미션이 있는지 확인
+        boolean hasTodayMission = userMissionRepository.existsByUserIdAndAssignedDate(userId, today);
+        if (hasTodayMission) {
+            throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED, "하루에 한 개의 미션만 수행할 수 있습니다.");
+        }
+
+        // 현재 주차에 해당하는 사용자 미션 조회 (미션 중복 방지용)
+        List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+
+        // 할당 가능한 미션 찾기
+        Mission mission = getAvailableMission(userMissions);
+        if (mission == null) {
+            throw new CustomException(ErrorCode.MISSION_NOT_FOUND, "할당 가능한 미션이 없습니다.");
+        }
+
+        // 미션 생성 및 저장
+        UserMission userMission = UserMission.builder()
+                .user(user)
+                .groupId(1L)
+                .mission(mission)
+                .week(currentWeek)
+                .assignedDate(today) // 오늘 날짜로 할당
+                .build();
+
+        return userMissionRepository.save(userMission);
+    }
+
+    /**
+     * 미션 완료 상태 업데이트
      */
     @Transactional
     public void updateMissionStatus(Long userMissionId) {
@@ -164,21 +209,6 @@ public class ManittoService {
         // 랜덤으로 하나 선택
         int randomIndex = (int) (Math.random() * availableMissions.size());
         return availableMissions.get(randomIndex);
-    }
-
-    /**
-     * 사용자에게 미션 할당
-     */
-    @Transactional
-    public UserMission assignMissionToUser(User user, Mission mission, int week) {
-        UserMission userMission = UserMission.builder()
-                .user(user)
-                .groupId(1L) // MVP에서는 기본 그룹 ID 1로 고정
-                .mission(mission)
-                .week(week)
-                .build();
-
-        return userMissionRepository.save(userMission);
     }
 
     /**
