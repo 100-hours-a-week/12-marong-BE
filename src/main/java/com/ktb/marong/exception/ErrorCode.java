@@ -50,6 +50,7 @@ public enum ErrorCode {
     // 미션 관련 에러
     MISSION_NOT_FOUND(404, "미션을 찾을 수 없습니다."),
     DAILY_MISSION_LIMIT_EXCEEDED(400, "하루에 한 개의 미션만 수행할 수 있습니다."),
+    MISSION_NOT_ASSIGNED(400, "할당되지 않은 미션입니다."),
 
     // 마니또 관련 에러 추가
     MANITTO_NOT_FOUND(404, "현재 매칭된 마니또가 없습니다."),
