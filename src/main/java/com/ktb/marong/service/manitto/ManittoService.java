@@ -224,20 +224,20 @@ public class ManittoService {
     }
 
     /**
-     * 다음 마니또 공개(금요일 오후 5시)까지 남은 시간 계산
+     * 다음 마니또 공개(월요일 오후 12시)까지 남은 시간 계산
      * 형식: HH:MM:SS
      */
     private String calculateRemainingTimeUntilReveal() {
         LocalDateTime now = LocalDateTime.now();
 
-        // 이번 주 금요일 오후 5시 계산
-        LocalDateTime targetTime = now.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY))
-                .with(LocalTime.of(17, 0, 0));
+        // 이번 주 월요일 오후 12시 계산
+        LocalDateTime targetTime = now.with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
+                .with(LocalTime.of(12, 0, 0));
 
-        // 이미 지났으면 다음 주 금요일로 설정
+        // 이미 지났으면 다음 주 월요일로 설정
         if (now.isAfter(targetTime)) {
-            targetTime = now.with(TemporalAdjusters.next(DayOfWeek.FRIDAY))
-                    .with(LocalTime.of(17, 0, 0));
+            targetTime = now.with(TemporalAdjusters.next(DayOfWeek.MONDAY))
+                    .with(LocalTime.of(12, 0, 0));
         }
 
         // 남은 시간 계산
