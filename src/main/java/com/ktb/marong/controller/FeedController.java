@@ -33,13 +33,12 @@ public class FeedController {
     public ResponseEntity<?> uploadFeed(
             @CurrentUser Long userId,
             @RequestParam("missionId") Long missionId,
-            @RequestParam("manittoName") String manittoName,
             @RequestParam("content") String content,
             @RequestParam(value = "image", required = false) MultipartFile image) {
 
         log.info("게시글 업로드 요청: userId={}, missionId={}", userId, missionId);
 
-        PostRequestDto requestDto = new PostRequestDto(missionId, manittoName, content);
+        PostRequestDto requestDto = new PostRequestDto(missionId, content);  // manittoName 제거
         Long feedId = feedService.savePost(userId, requestDto, image);
 
         return ResponseEntity.status(HttpStatus.CREATED)

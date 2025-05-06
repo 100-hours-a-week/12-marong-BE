@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/oauth/redirect-url").permitAll()
                         .requestMatchers("/auth/oauth/callback").permitAll()
                         .requestMatchers("/auth/token/refresh").permitAll()
+                        .requestMatchers("/test/**").permitAll() // 테스트 API 접근 허용 추가
                         .requestMatchers("/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/survey").authenticated()

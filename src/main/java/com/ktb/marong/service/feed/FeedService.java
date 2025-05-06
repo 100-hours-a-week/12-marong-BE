@@ -1,8 +1,11 @@
 package com.ktb.marong.service.feed;
 
+import com.ktb.marong.common.util.WeekCalculator;
 import com.ktb.marong.domain.feed.Post;
 import com.ktb.marong.domain.feed.PostLike;
+import com.ktb.marong.domain.manitto.Manitto;
 import com.ktb.marong.domain.mission.Mission;
+import com.ktb.marong.domain.mission.UserMission;
 import com.ktb.marong.domain.user.User;
 import com.ktb.marong.dto.request.feed.PostLikeRequestDto;
 import com.ktb.marong.dto.request.feed.PostRequestDto;
@@ -37,6 +40,8 @@ public class FeedService {
     private final UserRepository userRepository;
     private final MissionRepository missionRepository;
     private final AnonymousNameRepository anonymousNameRepository;
+    private final UserMissionRepository userMissionRepository;
+    private final ManittoRepository manittoRepository;
     private final FileUploadService fileUploadService;
 
     /**
@@ -52,17 +57,34 @@ public class FeedService {
         Mission mission = missionRepository.findById(requestDto.getMissionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND));
 
+        // 현재 주차 계산
+        int currentWeek = WeekCalculator.getCurrentWeek();
+
+        // 미션이 현재 사용자에게 할당된 것인지 확인
+        UserMission userMission = userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, requestDto.getMissionId(), currentWeek)
+                .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_ASSIGNED, "할당되지 않은 미션입니다."));
+
+        // 미션 상태가 진행 중인지 확인
+        if (!"ing".equals(userMission.getStatus())) {
+            throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이미 완료된 미션입니다.");
+        }
+
         // 해당 미션을 이미 수행했는지 확인
         if (postRepository.countByUserIdAndMissionId(userId, requestDto.getMissionId()) > 0) {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED);
         }
 
-//        // 사용자의 익명 이름 조회 (MVP에서는 그룹 ID가 1로 고정) -> 익명 이름 조회 실패 시 에러코드 출력
-//        String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
-//                .orElseThrow(() -> new CustomException(ErrorCode.ANONYMOUS_NAME_NOT_FOUND));
+        // 현재 사용자의 마니또 정보 조회
+        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        if (manittoList.isEmpty()) {
+            throw new CustomException(ErrorCode.MANITTO_NOT_FOUND);
+        }
 
-        // 익명 이름 조회할 때 없으면 기본값 반환
-        String anonymousName = anonymousNameRepository.findAnonymousNameByUserId(userId)
+        Manitto manitto = manittoList.get(0);
+        String manittoName = manitto.getReceiver().getNickname();  // 서버에서 manittoName 설정
+
+        // 익명 이름 조회 - 현재 주차 정보 추가
+        String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndWeek(userId, currentWeek)
                 .orElse("익명의 " + getRandomAnimal()); // 없으면 기본 이름 생성
 
         // 이미지 업로드 처리
@@ -81,7 +103,7 @@ public class FeedService {
                 .user(user)
                 .mission(mission)
                 .anonymousSnapshotName(anonymousName)
-                .manittoName(requestDto.getManittoName())
+                .manittoName(manittoName)
                 .content(requestDto.getContent())
                 .imageUrl(imageUrl)
                 .build();
@@ -172,7 +194,13 @@ public class FeedService {
      */
     private void updateMissionStatus(Long userId, Long missionId) {
         // UserMission 테이블에서 미션 상태를 'completed'로 업데이트
-        // MVP에서는 간소화하여 실제 구현 생략 가능
-        log.info("미션 완료 상태 업데이트: userId={}, missionId={}", userId, missionId);
+        int currentWeek = WeekCalculator.getCurrentWeek();
+
+        userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, missionId, currentWeek)
+                .ifPresent(userMission -> {
+                    userMission.complete();
+                    userMissionRepository.save(userMission);
+                    log.info("미션 완료 상태 업데이트: userId={}, missionId={}", userId, missionId);
+                });
     }
 }
