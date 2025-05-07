@@ -220,6 +220,7 @@ public class ManittoService {
         return MissionStatusResponseDto.MissionDto.builder()
                 .title(userMission.getMission().getTitle())
                 .description(userMission.getMission().getDescription())
+                .difficulty(userMission.getMission().getDifficulty())
                 .build();
     }
 

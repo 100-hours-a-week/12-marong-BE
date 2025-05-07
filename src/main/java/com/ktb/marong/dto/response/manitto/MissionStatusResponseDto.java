@@ -40,5 +40,6 @@ public class MissionStatusResponseDto {
     public static class MissionDto {
         private String title;
         private String description;
+        private String difficulty;
     }
 }
