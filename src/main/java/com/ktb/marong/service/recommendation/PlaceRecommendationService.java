@@ -114,6 +114,7 @@ public class PlaceRecommendationService {
                 .name(place.getName())
                 .category(place.getCategory())
                 .hours(place.getOpeningHours())
+                .address(place.getAddress())
                 .build();
     }
 }

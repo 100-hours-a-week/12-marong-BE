@@ -23,5 +23,6 @@ public class PlaceRecommendationResponseDto {
         private String name;
         private String category;
         private String hours;
+        private String address;
     }
 }

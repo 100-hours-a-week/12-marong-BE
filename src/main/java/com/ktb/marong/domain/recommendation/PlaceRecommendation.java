@@ -32,13 +32,17 @@ public class PlaceRecommendation {
     @Column(name = "opening_hours")
     private String openingHours;
 
+    @Column
+    private String address;
+
     @Builder
     public PlaceRecommendation(PlaceRecommendationSession session, String type, String name,
-                               String category, String openingHours) {
+                               String category, String openingHours, String address) {
         this.session = session;
         this.type = type;
         this.name = name;
         this.category = category;
         this.openingHours = openingHours;
+        this.address = address;
     }
 }
