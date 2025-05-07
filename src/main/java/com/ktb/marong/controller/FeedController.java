@@ -82,7 +82,7 @@ public class FeedController {
 
         log.info("피드 조회 요청: userId={}, page={}, pageSize={}", userId, page, pageSize);
 
-        PostPageResponseDto response = feedService.getPosts(page, pageSize);
+        PostPageResponseDto response = feedService.getPosts(userId, page, pageSize);
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,

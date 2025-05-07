@@ -1,5 +1,6 @@
 package com.ktb.marong.dto.response.feed;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ktb.marong.domain.feed.Post;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +23,10 @@ public class PostResponseDto {
     private LocalDateTime createdAt;
     private String imageUrl;
 
-    public static PostResponseDto fromEntity(Post post, int likesCount) {
+    @JsonProperty("isLiked") // 필드명을 isLiked로 명시적 지정
+    private boolean isLiked; // 현재 사용자가 좋아요 눌렀는지 여부
+
+    public static PostResponseDto fromEntity(Post post, int likesCount, boolean isLiked) {
         return PostResponseDto.builder()
                 .feedId(post.getId())
                 .author(post.getAnonymousSnapshotName())
@@ -32,6 +36,7 @@ public class PostResponseDto {
                 .likes(likesCount)
                 .createdAt(post.getCreatedAt())
                 .imageUrl(post.getImageUrl())
+                .isLiked(isLiked)
                 .build();
     }
 }

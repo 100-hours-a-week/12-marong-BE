@@ -168,16 +168,20 @@ public class FeedService {
 
     /**
      * 게시글 목록 조회 (MVP에서는 그룹 필터링 없이 모든 게시글 조회)
+     * 현재 사용자의 좋아요 여부를 함께 반환
      */
     @Transactional(readOnly = true)
-    public PostPageResponseDto getPosts(int page, int pageSize) {
+    public PostPageResponseDto getPosts(Long userId, int page, int pageSize) {
         Pageable pageable = PageRequest.of(page - 1, pageSize);
         Page<Post> postPage = postRepository.findAllByOrderByCreatedAtDesc(pageable);
 
         List<PostResponseDto> postDtos = postPage.getContent().stream()
                 .map(post -> {
                     int likeCount = postLikeRepository.countByPostId(post.getId());
-                    return PostResponseDto.fromEntity(post, likeCount);
+                    boolean isLiked = postLikeRepository.existsByUserAndPost(
+                            userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND)),
+                            post);
+                    return PostResponseDto.fromEntity(post, likeCount, isLiked);
                 })
                 .collect(Collectors.toList());
 
