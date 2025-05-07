@@ -5,11 +5,11 @@ import java.time.temporal.ChronoUnit;
 
 public class WeekCalculator {
 
-    // 누적 주차수 계산하기 위한 기준 날짜 (2025년 1월 1일) (상수로 정의)
-    private static final LocalDate SERVICE_START_DATE = LocalDate.of(2025, 1, 1);
+    // 누적 주차수 계산하기 위한 기준 날짜 (2025년 1월 6일) (상수로 정의)
+    private static final LocalDate SERVICE_START_DATE = LocalDate.of(2025, 1, 6);
 
     /**
-     * 2025.01.01 기준 현재 누적 주차 계산
+     * 2025.01.06 기준 현재 누적 주차 계산
      */
     public static int getCurrentWeek() {
         LocalDate today = LocalDate.now();
