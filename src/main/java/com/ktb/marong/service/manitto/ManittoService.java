@@ -151,6 +151,14 @@ public class ManittoService {
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
+        // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
+        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+
+        // 마니또 매칭 정보가 없는 경우 예외 발생
+        if (manittoList.isEmpty()) {
+            throw new CustomException(ErrorCode.MANITTO_NOT_FOUND, "마니또 매칭 정보가 없어 미션을 할당할 수 없습니다.");
+        }
+
         // 오늘 이미 할당된 미션이 있는지 확인
         boolean hasTodayMission = userMissionRepository.existsByUserIdAndAssignedDate(userId, today);
         if (hasTodayMission) {
