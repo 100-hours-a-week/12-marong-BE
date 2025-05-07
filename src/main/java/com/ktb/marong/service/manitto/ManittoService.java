@@ -226,6 +226,7 @@ public class ManittoService {
      */
     private MissionStatusResponseDto.MissionDto convertToMissionDto(UserMission userMission) {
         return MissionStatusResponseDto.MissionDto.builder()
+                .missionId(userMission.getMission().getId()) // 미션 ID 추가
                 .title(userMission.getMission().getTitle())
                 .description(userMission.getMission().getDescription())
                 .difficulty(userMission.getMission().getDifficulty())
