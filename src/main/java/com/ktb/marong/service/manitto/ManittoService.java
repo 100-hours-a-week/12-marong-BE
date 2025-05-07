@@ -49,8 +49,8 @@ public class ManittoService {
         // 현재 주차에 해당하는 마니또 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
 
-        // findByGiverIdAndGroupIdAndWeek가 리스트를 반환하므로 첫 번째 요소를 가져옴
-        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // findByGiverIdAndGroupIdAndWeek를 findByManitteeIdAndGroupIdAndWeek로 변경
+        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
         // 매칭 정보가 없을 경우 기본 응답
         if (manittoList.isEmpty()) {
@@ -63,7 +63,7 @@ public class ManittoService {
                     .build();
         }
 
-        // 여러 매칭 중 첫 번째 매칭 정보 사용 (또는 다른 로직으로 선택)
+        // 여러 매칭 중 첫 번째 매칭 정보 사용
         Manitto manitto = manittoList.get(0);
 
         // 다음 공개까지 남은 시간 계산 (금요일 오후 5시 기준)
@@ -71,8 +71,8 @@ public class ManittoService {
 
         return ManittoInfoResponseDto.builder()
                 .manitto(ManittoInfoResponseDto.ManittoDto.builder()
-                        .name(manitto.getReceiver().getNickname())
-                        .profileImage(manitto.getReceiver().getProfileImageUrl())
+                        .name(manitto.getManitto().getNickname()) // receiver에서 manitto로 변경
+                        .profileImage(manitto.getManitto().getProfileImageUrl()) // receiver에서 manitto로 변경
                         .remainingTime(remainingTime)
                         .build())
                 .build();
@@ -152,9 +152,10 @@ public class ManittoService {
         LocalDate today = LocalDate.now();
 
         // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
-        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // findByGiverIdAndGroupIdAndWeek를 findByManitteeIdAndGroupIdAndWeek로 변경
+        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
-        // 마니또 매칭 정보가 없는 경우 예외 발생
+        // 마니또 매칭 정보가 없는 경우 예외 발생 (추가된 부분)
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND, "마니또 매칭 정보가 없어 미션을 할당할 수 없습니다.");
         }

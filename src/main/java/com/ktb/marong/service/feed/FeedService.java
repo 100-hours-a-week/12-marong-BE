@@ -74,14 +74,14 @@ public class FeedService {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED);
         }
 
-        // 현재 사용자의 마니또 정보 조회
-        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 현재 사용자의 마니또 정보 조회 - 메서드 이름 변경
+        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND);
         }
 
         Manitto manitto = manittoList.get(0);
-        String manittoName = manitto.getReceiver().getNickname();  // 서버에서 manittoName 설정
+        String manittoName = manitto.getManitto().getNickname();  // 필드 이름 변경: receiver -> manitto // 서버에서 ManittoName 설정
 
         // 익명 이름 조회 - 현재 주차 정보 추가
         String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndWeek(userId, currentWeek)

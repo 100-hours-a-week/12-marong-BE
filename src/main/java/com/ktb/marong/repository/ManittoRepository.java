@@ -10,7 +10,7 @@ import java.util.List;
 public interface ManittoRepository extends JpaRepository<Manitto, Long> {
 
     /**
-     * 특정 사용자(giver), 그룹, 주차에 해당하는 마니또 정보 조회
+     * 특정 사용자(manittee), 그룹, 주차에 해당하는 마니또 정보 조회
      */
-    List<Manitto> findByGiverIdAndGroupIdAndWeek(Long giverId, Long groupId, Integer week);
+    List<Manitto> findByManitteeIdAndGroupIdAndWeek(Long manitteeId, Long groupId, Integer week);
 }
