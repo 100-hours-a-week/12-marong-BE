@@ -45,12 +45,9 @@ public class PlaceRecommendationService {
         int currentWeek = WeekCalculator.getCurrentWeek();
         List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
-        // 마니또 매칭이 없는 경우 빈 응답 반환
+        // 마니또 매칭이 없는 경우 예외 발생
         if (manittoList.isEmpty()) {
-            return PlaceRecommendationResponseDto.builder()
-                    .restaurants(Collections.emptyList())
-                    .cafes(Collections.emptyList())
-                    .build();
+            throw new CustomException(ErrorCode.MANITTO_NOT_FOUND, "마니또 매칭 정보가 없어 장소 추천을 제공할 수 없습니다.");
         }
 
         // 매칭된 마니또 정보 (첫 번째 매칭 사용)
@@ -59,12 +56,9 @@ public class PlaceRecommendationService {
         // 현재 주차에 해당하는 장소 추천 세션 조회
         List<PlaceRecommendationSession> sessions = sessionRepository.findByManitteeIdAndWeek(userId, currentWeek);
 
-        // 세션이 없는 경우 빈 응답 반환
+        // 세션이 없는 경우 예외 발생
         if (sessions.isEmpty()) {
-            return PlaceRecommendationResponseDto.builder()
-                    .restaurants(Collections.emptyList())
-                    .cafes(Collections.emptyList())
-                    .build();
+            throw new CustomException(ErrorCode.RECOMMENDATION_NOT_FOUND, "장소 추천 정보가 없습니다.");
         }
 
         // 현재 세션 (첫 번째 세션 사용)

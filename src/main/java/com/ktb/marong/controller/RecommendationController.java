@@ -2,6 +2,7 @@ package com.ktb.marong.controller;
 
 import com.ktb.marong.dto.response.common.ApiResponse;
 import com.ktb.marong.dto.response.recommendation.PlaceRecommendationResponseDto;
+import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.recommendation.PlaceRecommendationService;
 import lombok.RequiredArgsConstructor;
@@ -27,12 +28,18 @@ public class RecommendationController {
     public ResponseEntity<?> getPlaceRecommendations(@CurrentUser Long userId) {
         log.info("장소 추천 요청: userId={}", userId);
 
-        PlaceRecommendationResponseDto response = placeRecommendationService.getPlaceRecommendations(userId);
+        try {
+            PlaceRecommendationResponseDto response = placeRecommendationService.getPlaceRecommendations(userId);
 
-        return ResponseEntity.ok(ApiResponse.success(
-                response,
-                "places_recommended",
-                null
-        ));
+            return ResponseEntity.ok(ApiResponse.success(
+                    response,
+                    "places_recommended",
+                    null
+            ));
+        } catch (CustomException e) {
+            log.error("장소 추천 조회 실패: {}", e.getMessage());
+            return ResponseEntity.status(e.getErrorCode().getStatus())
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        }
     }
 }
