@@ -35,4 +35,10 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
      */
     @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate < :date AND um.status = 'ing'")
     List<UserMission> findIncompleteMissionsBeforeDate(@Param("userId") Long userId, @Param("date") LocalDate date);
+
+    /**
+     * 특정 상태와 주차에 해당하는 모든 미션 조회
+     * 주로 이전 주차의 진행 중인 미션을 모두 찾아 미완료 처리하기 위해 사용
+     */
+    List<UserMission> findByStatusAndWeek(String status, Integer week);
 }

@@ -12,6 +12,7 @@ import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,7 +84,7 @@ public class ManittoService {
      * 마니또 미션 상태 조회
      * 미션 수행 여부는 게시글 작성 여부로 판단
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public MissionStatusResponseDto getMissionStatus(Long userId) {
         // 사용자 조회
         User user = userRepository.findById(userId)
@@ -223,6 +224,30 @@ public class ManittoService {
                         userId, mission.getMission().getId(), mission.getAssignedDate());
             }
         }
+    }
+
+    /**
+     * 마니또 주기 변경에 따른 미션 초기화 (주차 변경 시 자동 실행)
+     * 매주 월요일 오전 9시에 실행
+     */
+    @Scheduled(cron = "0 0 9 * * MON")
+    @Transactional
+    public void resetMissionsForNewCycle() {
+        int currentWeek = WeekCalculator.getCurrentWeek();
+        int previousWeek = currentWeek - 1;
+        log.info("새로운 마니또 주기 시작: 현재 주차={}, 이전 주차={}", currentWeek, previousWeek);
+
+        // 이전 주차의 진행 중인 미션을 미완료 처리
+        List<UserMission> inProgressMissions = userMissionRepository.findByStatusAndWeek("ing", previousWeek);
+        for (UserMission mission : inProgressMissions) {
+            mission.markAsIncomplete();
+            userMissionRepository.save(mission);
+            log.info("이전 주차 미완료 미션 처리: userId={}, missionId={}, week={}",
+                    mission.getUser().getId(), mission.getMission().getId(), previousWeek);
+        }
+
+        // 새로운 주차 시작 로그
+        log.info("주차 {} 시작: 모든 사용자의 미션이 초기화되었습니다.", currentWeek);
     }
 
     /**
