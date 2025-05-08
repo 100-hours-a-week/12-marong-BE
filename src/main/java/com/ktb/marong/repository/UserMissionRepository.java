@@ -2,6 +2,8 @@ package com.ktb.marong.repository;
 
 import com.ktb.marong.domain.mission.UserMission;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -26,4 +28,11 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
      * 게시글 작성 시 미션 검증에 필요한 메소드
      */
     Optional<UserMission> findByUserIdAndMissionIdAndWeek(Long userId, Long missionId, Integer week);
+
+    /**
+     * 특정 날짜 이전에 할당된 진행 중인 미션을 찾는 쿼리
+     * 완료되지 않고 지나간 미션들을 처리하기 위함
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate < :date AND um.status = 'ing'")
+    List<UserMission> findIncompleteMissionsBeforeDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 }

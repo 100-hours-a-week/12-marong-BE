@@ -49,6 +49,7 @@ public class ManittoService {
         // 현재 주차에 해당하는 마니또 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
 
+        // 사용자(마니띠)의 마니또를 조회
         // findByGiverIdAndGroupIdAndWeek를 findByManitteeIdAndGroupIdAndWeek로 변경
         List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
@@ -71,7 +72,7 @@ public class ManittoService {
 
         return ManittoInfoResponseDto.builder()
                 .manitto(ManittoInfoResponseDto.ManittoDto.builder()
-                        .name(manitto.getManitto().getNickname()) // receiver에서 manitto로 변경
+                        .name(manitto.getManitto().getNickname())  // receiver에서 manitto로 변경
                         .profileImage(manitto.getManitto().getProfileImageUrl()) // receiver에서 manitto로 변경
                         .remainingTime(remainingTime)
                         .build())
@@ -97,13 +98,24 @@ public class ManittoService {
         List<UserMission> inProgressMissions = new ArrayList<>();
 
         for (UserMission userMission : userMissions) {
-            // 미션 수행 여부는 게시글 작성 여부로 판단
-            int postCount = postRepository.countByUserIdAndMissionId(userId, userMission.getMission().getId());
-
-            if (postCount > 0 || "completed".equals(userMission.getStatus())) {
+            // 미션 상태를 통해 먼저 판단
+            if ("completed".equals(userMission.getStatus())) {
                 completedMissions.add(userMission);
-            } else {
-                inProgressMissions.add(userMission);
+            }
+            // 게시글 작성 여부로 상태 추가 판단 (현재 주차의 해당 미션에 대한 게시글만 체크)
+            else {
+                // 해당 미션 ID와 주차를 모두 확인하여 게시글이 있는지 확인
+                int postCount = postRepository.countByUserIdAndMissionIdAndWeek(
+                        userId, userMission.getMission().getId(), currentWeek);
+
+                if (postCount > 0) {
+                    // 게시글이 있으면 미션을 완료 상태로 업데이트하고 완료 목록에 추가
+                    userMission.complete();
+                    userMissionRepository.save(userMission);
+                    completedMissions.add(userMission);
+                } else {
+                    inProgressMissions.add(userMission);
+                }
             }
         }
 
@@ -142,6 +154,7 @@ public class ManittoService {
 
     /**
      * 새 미션 할당 - 하루 1개 제한 추가
+     * 이전 날짜의 완료되지 않은 미션은 자동으로 '미완료' 상태로 변경
      */
     @Transactional
     public UserMission assignNewMission(Long userId) {
@@ -150,6 +163,9 @@ public class ManittoService {
 
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
+
+        // 이전 날짜의 완료되지 않은 미션들을 '미완료' 상태로 변경
+        handleExpiredMissions(userId, today);
 
         // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
         // findByGiverIdAndGroupIdAndWeek를 findByManitteeIdAndGroupIdAndWeek로 변경
@@ -185,6 +201,28 @@ public class ManittoService {
                 .build();
 
         return userMissionRepository.save(userMission);
+    }
+
+    /**
+     * 이전 날짜의 완료되지 않은 미션을 처리하는 메서드
+     * 완료되지 않은 미션은 '미완료(incomplete)' 상태로 변경
+     */
+    private void handleExpiredMissions(Long userId, LocalDate today) {
+        LocalDate yesterday = today.minusDays(1);
+
+        // 현재 주차의 어제 이전에 할당된 미션 중 진행 중인 상태인 미션 조회
+        List<UserMission> expiredMissions = userMissionRepository.findIncompleteMissionsBeforeDate(
+                userId, yesterday);
+
+        if (!expiredMissions.isEmpty()) {
+            for (UserMission mission : expiredMissions) {
+                // 미완료 상태로 변경
+                mission.markAsIncomplete();
+                userMissionRepository.save(mission);
+                log.info("미완료 미션 처리: userId={}, missionId={}, assignedDate={}",
+                        userId, mission.getMission().getId(), mission.getAssignedDate());
+            }
+        }
     }
 
     /**
