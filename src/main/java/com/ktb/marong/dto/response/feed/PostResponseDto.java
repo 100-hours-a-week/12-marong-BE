@@ -1,5 +1,6 @@
 package com.ktb.marong.dto.response.feed;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ktb.marong.domain.feed.Post;
 import lombok.AllArgsConstructor;
@@ -13,6 +14,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY,
+        getterVisibility = JsonAutoDetect.Visibility.NONE,
+        setterVisibility = JsonAutoDetect.Visibility.NONE)
 public class PostResponseDto {
     private Long feedId;
     private String author;
@@ -24,8 +28,8 @@ public class PostResponseDto {
     private String imageUrl;
     private Integer week; // 주차 정보 추가
 
-    @JsonProperty("isLiked") // 필드명을 isLiked로 명시적 지정
-    private boolean isLiked; // 현재 사용자가 좋아요 눌렀는지 여부
+    @JsonProperty("isLiked")
+    private boolean liked; // 필드명 변경: isLiked -> liked
 
     public static PostResponseDto fromEntity(Post post, int likesCount, boolean isLiked) {
         return PostResponseDto.builder()
@@ -38,7 +42,7 @@ public class PostResponseDto {
                 .createdAt(post.getCreatedAt())
                 .imageUrl(post.getImageUrl())
                 .week(post.getWeek()) // 주차 정보 포함
-                .isLiked(isLiked)
+                .liked(isLiked)
                 .build();
     }
 }
