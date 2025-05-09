@@ -105,9 +105,12 @@ public class ManittoService {
             }
             // 게시글 작성 여부로 상태 추가 판단 (현재 주차의 해당 미션에 대한 게시글만 체크)
             else {
-                // 해당 미션 ID와 주차를 모두 확인하여 게시글이 있는지 확인
+                // 주차 정보를 포함하여 확인 - 로그 추가
                 int postCount = postRepository.countByUserIdAndMissionIdAndWeek(
                         userId, userMission.getMission().getId(), currentWeek);
+
+                log.info("미션 완료 확인: userId={}, missionId={}, week={}, postCount={}",
+                        userId, userMission.getMission().getId(), currentWeek, postCount);
 
                 if (postCount > 0) {
                     // 게시글이 있으면 미션을 완료 상태로 업데이트하고 완료 목록에 추가
@@ -244,6 +247,17 @@ public class ManittoService {
             userMissionRepository.save(mission);
             log.info("이전 주차 미완료 미션 처리: userId={}, missionId={}, week={}",
                     mission.getUser().getId(), mission.getMission().getId(), previousWeek);
+        }
+
+        // 중요: 현재 주차에 잘못 생성된 미션이 있으면 삭제
+        // 이는 테스트 데이터나 다른 로직에 의해 생성된 미션일 수 있음
+        List<UserMission> currentWeekMissions = userMissionRepository.findByWeek(currentWeek);
+        if (!currentWeekMissions.isEmpty()) {
+            for (UserMission mission : currentWeekMissions) {
+                userMissionRepository.delete(mission);
+                log.info("현재 주차 미션 초기화: userId={}, missionId={}, week={}",
+                        mission.getUser().getId(), mission.getMission().getId(), currentWeek);
+            }
         }
 
         // 새로운 주차 시작 로그

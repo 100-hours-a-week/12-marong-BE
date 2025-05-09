@@ -22,6 +22,7 @@ public class PostResponseDto {
     private int likes;
     private LocalDateTime createdAt;
     private String imageUrl;
+    private Integer week; // 주차 정보 추가
 
     @JsonProperty("isLiked") // 필드명을 isLiked로 명시적 지정
     private boolean isLiked; // 현재 사용자가 좋아요 눌렀는지 여부
@@ -36,6 +37,7 @@ public class PostResponseDto {
                 .likes(likesCount)
                 .createdAt(post.getCreatedAt())
                 .imageUrl(post.getImageUrl())
+                .week(post.getWeek()) // 주차 정보 포함
                 .isLiked(isLiked)
                 .build();
     }

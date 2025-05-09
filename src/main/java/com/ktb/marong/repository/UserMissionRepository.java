@@ -25,7 +25,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
 
     /**
      * 특정 사용자, 미션, 주차에 해당하는 미션 조회
-     * 게시글 작성 시 미션 검증에 필요한 메소드
+     * 게시글 작성 시 미션 검증 및 완료 여부 확인용
      */
     Optional<UserMission> findByUserIdAndMissionIdAndWeek(Long userId, Long missionId, Integer week);
 
@@ -41,4 +41,10 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
      * 주로 이전 주차의 진행 중인 미션을 모두 찾아 미완료 처리하기 위해 사용
      */
     List<UserMission> findByStatusAndWeek(String status, Integer week);
+
+    /**
+     * 특정 주차의 모든 미션 조회
+     * 주차 변경 시 남아있는 미션을 초기화하기 위해 사용
+     */
+    List<UserMission> findByWeek(Integer week);
 }
