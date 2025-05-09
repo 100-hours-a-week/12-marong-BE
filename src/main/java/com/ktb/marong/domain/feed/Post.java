@@ -34,6 +34,10 @@ public class Post {
     @Column(name = "group_id", nullable = false)
     private Long groupId = 1L; // 기본 그룹 ID는 1로 고정
 
+    // 주차 정보 필드 추가
+    @Column(name = "week", nullable = false)
+    private Integer week;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mission_id", nullable = false)
     private Mission mission;
@@ -62,13 +66,18 @@ public class Post {
     private LocalDateTime deletedAt;
 
     @Builder
-    public Post(User user, Mission mission, String anonymousSnapshotName,
+    public Post(User user, Mission mission, Integer week, String anonymousSnapshotName,
                 String manittoName, String content, String imageUrl) {
         this.user = user;
         this.mission = mission;
+        this.week = week;
         this.anonymousSnapshotName = anonymousSnapshotName;
         this.manittoName = manittoName;
         this.content = content;
         this.imageUrl = imageUrl;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 }

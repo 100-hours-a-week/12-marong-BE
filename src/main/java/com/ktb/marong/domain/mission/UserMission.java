@@ -65,4 +65,26 @@ public class UserMission {
     public void complete() {
         this.status = "completed";
     }
+
+    /**
+     * 미션 미완료 처리
+     * 하루가 지났지만 완료하지 못한 미션에 대한 상태 갱신
+     */
+    public void markAsIncomplete() {
+        this.status = "incomplete";
+    }
+
+    /**
+     * 미션이 진행 중인지 확인
+     */
+    public boolean isInProgress() {
+        return "ing".equals(this.status);
+    }
+
+    /**
+     * 미션이 완료되었는지 확인
+     */
+    public boolean isCompleted() {
+        return "completed".equals(this.status);
+    }
 }

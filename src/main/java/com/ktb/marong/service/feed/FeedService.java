@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -45,7 +46,7 @@ public class FeedService {
     private final FileUploadService fileUploadService;
 
     /**
-     * 게시글 업로드
+     * 게시글 업로드 - 주차 정보 추가
      */
     @Transactional
     public Long savePost(Long userId, PostRequestDto requestDto, MultipartFile image) {
@@ -69,19 +70,23 @@ public class FeedService {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이미 완료된 미션입니다.");
         }
 
-        // 해당 미션을 이미 수행했는지 확인
-        if (postRepository.countByUserIdAndMissionId(userId, requestDto.getMissionId()) > 0) {
-            throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED);
+        // 해당 미션을 현재 주차에 이미 수행했는지 확인 - week 포함하여 체크
+        int postCount = postRepository.countByUserIdAndMissionIdAndWeek(userId, requestDto.getMissionId(), currentWeek);
+        log.info("미션 수행 확인: userId={}, missionId={}, week={}, postCount={}",
+                userId, requestDto.getMissionId(), currentWeek, postCount);
+
+        if (postCount > 0) {
+            throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이번 주차에 이미 해당 미션을 완료했습니다.");
         }
 
         // 현재 사용자의 마니또 정보 조회
-        List<Manitto> manittoList = manittoRepository.findByGiverIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND);
         }
 
         Manitto manitto = manittoList.get(0);
-        String manittoName = manitto.getReceiver().getNickname();  // 서버에서 manittoName 설정
+        String manittoName = manitto.getManitto().getNickname(); // 필드 이름 변경: receiver -> manitto // 서버에서 ManittoName 설정
 
         // 익명 이름 조회 - 현재 주차 정보 추가
         String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndWeek(userId, currentWeek)
@@ -98,10 +103,11 @@ public class FeedService {
             }
         }
 
-        // 게시글 생성
+        // 게시글 생성 - 주차 정보 포함
         Post post = Post.builder()
                 .user(user)
                 .mission(mission)
+                .week(currentWeek) // 주차 정보 추가
                 .anonymousSnapshotName(anonymousName)
                 .manittoName(manittoName)
                 .content(requestDto.getContent())
@@ -112,7 +118,7 @@ public class FeedService {
         Post savedPost = postRepository.save(post);
 
         // 미션 완료 상태 업데이트 (UserMission 테이블)
-        updateMissionStatus(userId, mission.getId());
+        updateMissionStatus(userId, mission.getId(), currentWeek);
 
         return savedPost.getId();
     }
@@ -167,17 +173,23 @@ public class FeedService {
     }
 
     /**
-     * 게시글 목록 조회 (MVP에서는 그룹 필터링 없이 모든 게시글 조회)
+     * 게시글 목록 조회 (MVP에서는 그룹 필터링 없이 모든 게시글 최신순으로 조회)
+     * 현재 사용자의 좋아요 여부를 함께 반환
      */
     @Transactional(readOnly = true)
-    public PostPageResponseDto getPosts(int page, int pageSize) {
+    public PostPageResponseDto getPosts(Long userId, int page, int pageSize) {
         Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+        // 주차 필터링 없이 모든 게시글을 최신순으로 조회
         Page<Post> postPage = postRepository.findAllByOrderByCreatedAtDesc(pageable);
 
         List<PostResponseDto> postDtos = postPage.getContent().stream()
                 .map(post -> {
                     int likeCount = postLikeRepository.countByPostId(post.getId());
-                    return PostResponseDto.fromEntity(post, likeCount);
+                    boolean isLiked = postLikeRepository.existsByUserAndPost(
+                            userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND)),
+                            post);
+                    return PostResponseDto.fromEntity(post, likeCount, isLiked);
                 })
                 .collect(Collectors.toList());
 
@@ -190,17 +202,52 @@ public class FeedService {
     }
 
     /**
-     * 미션 완료 상태 업데이트
+     * 미션 완료 상태 업데이트 - 주차 정보 포함
      */
-    private void updateMissionStatus(Long userId, Long missionId) {
+    private void updateMissionStatus(Long userId, Long missionId, Integer week) {
         // UserMission 테이블에서 미션 상태를 'completed'로 업데이트
-        int currentWeek = WeekCalculator.getCurrentWeek();
-
-        userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, missionId, currentWeek)
+        userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, missionId, week)
                 .ifPresent(userMission -> {
                     userMission.complete();
                     userMissionRepository.save(userMission);
-                    log.info("미션 완료 상태 업데이트: userId={}, missionId={}", userId, missionId);
+                    log.info("미션 완료 상태 업데이트: userId={}, missionId={}, week={}", userId, missionId, week);
                 });
+    }
+
+    /**
+     * 주차 정보 마이그레이션 - 기존 게시글에 주차 정보 추가
+     */
+    @Transactional
+    public void migratePostWeekData() {
+        // 기존 데이터에 대해 게시글 생성일자를 기준으로 주차 계산
+        List<Post> allPosts = postRepository.findAll();
+
+        for (Post post : allPosts) {
+            // 게시글 생성일자를 기준으로 주차 계산
+            LocalDateTime createdAt = post.getCreatedAt();
+            int week = WeekCalculator.getWeekOf(createdAt.toLocalDate());
+
+            // 주차 정보가 없거나 0인 경우에만 업데이트
+            if (post.getWeek() == null || post.getWeek() == 0) {
+                // 엔티티를 직접 수정할 수 없으므로 새 엔티티 생성 후 저장
+                Post updatedPost = Post.builder()
+                        .user(post.getUser())
+                        .mission(post.getMission())
+                        .week(week)
+                        .anonymousSnapshotName(post.getAnonymousSnapshotName())
+                        .manittoName(post.getManittoName())
+                        .content(post.getContent())
+                        .imageUrl(post.getImageUrl())
+                        .build();
+
+                // ID 설정 (기존 ID 유지)
+                updatedPost.setId(post.getId());
+
+                // 저장
+                postRepository.save(updatedPost);
+
+                log.info("게시글 주차 정보 마이그레이션: postId={}, week={}", post.getId(), week);
+            }
+        }
     }
 }
