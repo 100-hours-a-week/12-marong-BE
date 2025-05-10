@@ -110,6 +110,8 @@ public class PlaceRecommendationService {
                 .category(place.getCategory())
                 .hours(place.getOpeningHours())
                 .address(place.getAddress())
+                .latitude(place.getLatitude())
+                .longitude(place.getLongitude())
                 .build();
     }
 }

@@ -35,14 +35,23 @@ public class PlaceRecommendation {
     @Column
     private String address;
 
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @Builder
     public PlaceRecommendation(PlaceRecommendationSession session, String type, String name,
-                               String category, String openingHours, String address) {
+                               String category, String openingHours, String address,
+                               Double latitude, Double longitude) {
         this.session = session;
         this.type = type;
         this.name = name;
         this.category = category;
         this.openingHours = openingHours;
         this.address = address;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 }
