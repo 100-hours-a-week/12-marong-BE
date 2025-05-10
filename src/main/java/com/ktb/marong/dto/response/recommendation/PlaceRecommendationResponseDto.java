@@ -24,5 +24,7 @@ public class PlaceRecommendationResponseDto {
         private String category;
         private String hours;
         private String address;
+        private Double latitude;
+        private Double longitude;
     }
 }
