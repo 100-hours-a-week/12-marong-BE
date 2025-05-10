@@ -50,7 +50,7 @@ public class S3FileUploadService implements FileUploadService {
             // S3에 업로드
             amazonS3.putObject(
                     new PutObjectRequest(bucket, filePath, inputStream, metadata)
-                            .withCannedAcl(CannedAccessControlList.PublicRead)
+                    // .withCannedAcl(CannedAccessControlList.PublicRead) 제거
             );
         }
 
