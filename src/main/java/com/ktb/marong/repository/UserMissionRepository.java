@@ -40,10 +40,19 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
             @Param("week") Integer week);
 
     /**
-     * 특정 주차의 오늘 할당된 미션 조회
+     * 특정 주차의 오늘 할당된 진행 중인 미션 조회
      */
     @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
     List<UserMission> findTodaysMissions(
+            @Param("userId") Long userId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 날짜와 주차에 할당된 모든 미션 조회 (상태 무관)
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate = :date AND um.week = :week")
+    List<UserMission> findAllMissionsAssignedOnDate(
             @Param("userId") Long userId,
             @Param("date") LocalDate date,
             @Param("week") Integer week);

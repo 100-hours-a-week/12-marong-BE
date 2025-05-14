@@ -195,8 +195,8 @@ public class ManittoService {
         // 현재 주차의 이전 미션들을 미완료 상태로 변경
         handleExpiredMissions(userId, today, currentWeek);
 
-        // 오늘 이미 할당된 미션이 있는지 확인
-        List<UserMission> todaysMissions = userMissionRepository.findTodaysMissions(userId, today, currentWeek);
+        // 오늘 이미 할당된 미션이 있는지 확인 (상태와 관계없이)
+        List<UserMission> todaysMissions = userMissionRepository.findAllMissionsAssignedOnDate(userId, today, currentWeek);
         if (!todaysMissions.isEmpty()) {
             throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED, "하루에 한 개의 미션만 수행할 수 있습니다.");
         }
