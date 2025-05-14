@@ -30,11 +30,23 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
     Optional<UserMission> findByUserIdAndMissionIdAndWeek(Long userId, Long missionId, Integer week);
 
     /**
-     * 특정 날짜 이전에 할당된 진행 중인 미션을 찾는 쿼리
+     * 특정 주차의 특정 날짜 이전에 할당된 진행 중인 미션을 찾는 쿼리
      * 완료되지 않고 지나간 미션들을 처리하기 위함
      */
-    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate < :date AND um.status = 'ing'")
-    List<UserMission> findIncompleteMissionsBeforeDate(@Param("userId") Long userId, @Param("date") LocalDate date);
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate < :date AND um.status = 'ing' AND um.week = :week")
+    List<UserMission> findIncompleteMissionsBeforeDate(
+            @Param("userId") Long userId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 주차의 오늘 할당된 미션 조회
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
+    List<UserMission> findTodaysMissions(
+            @Param("userId") Long userId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
 
     /**
      * 특정 상태와 주차에 해당하는 모든 미션 조회
