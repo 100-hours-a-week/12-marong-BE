@@ -21,6 +21,7 @@ public class MissionStatusResponseDto {
     @AllArgsConstructor
     public static class ProgressDto {
         private int completed;
+        private int incomplete; // 추가된 미완료 미션 개수 필드
         private int total;
     }
 
@@ -31,6 +32,7 @@ public class MissionStatusResponseDto {
     public static class MissionsDto {
         private List<MissionDto> inProgress;
         private List<MissionDto> completed;
+        private List<MissionDto> incomplete;
     }
 
     @Getter

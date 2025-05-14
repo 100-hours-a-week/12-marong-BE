@@ -94,18 +94,19 @@ public class ManittoService {
         int currentWeek = WeekCalculator.getCurrentWeek();
         List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
-        // 진행 중인 미션과 완료된 미션 구분
+        // 진행 중인 미션, 완료된 미션, 미완료된 미션 구분
         List<UserMission> completedMissions = new ArrayList<>();
         List<UserMission> inProgressMissions = new ArrayList<>();
+        List<UserMission> incompleteMissions = new ArrayList<>(); // 미완료 미션 리스트 추가
 
         for (UserMission userMission : userMissions) {
             // 미션 상태를 통해 먼저 판단
             if ("completed".equals(userMission.getStatus())) {
                 completedMissions.add(userMission);
-            }
-            // 게시글 작성 여부로 상태 추가 판단 (현재 주차의 해당 미션에 대한 게시글만 체크)
-            else {
-                // 주차 정보를 포함하여 확인 - 로그 추가
+            } else if ("incomplete".equals(userMission.getStatus())) {
+                incompleteMissions.add(userMission); // 미완료 미션 추가
+            } else {
+                // 게시글 작성 여부로 상태 추가 판단 (현재 주차의 해당 미션에 대한 게시글만 체크)
                 int postCount = postRepository.countByUserIdAndMissionIdAndWeek(
                         userId, userMission.getMission().getId(), currentWeek);
 
@@ -140,18 +141,27 @@ public class ManittoService {
                         .map(this::convertToMissionDto)
                         .collect(Collectors.toList());
 
+        // 미완료 미션 DTO 변환
+        List<MissionStatusResponseDto.MissionDto> incompleteMissionDtos =
+                incompleteMissions.stream()
+                        .map(this::convertToMissionDto)
+                        .collect(Collectors.toList());
+
         // 진행률 계산
-        int total = inProgressMissions.size() + completedMissions.size();
+        int total = userMissions.size();
         int completed = completedMissions.size();
+        int incomplete = incompleteMissions.size(); // 미완료 미션 개수
 
         return MissionStatusResponseDto.builder()
                 .progress(MissionStatusResponseDto.ProgressDto.builder()
                         .completed(completed)
+                        .incomplete(incomplete) // 미완료 미션 개수 추가
                         .total(total)
                         .build())
                 .missions(MissionStatusResponseDto.MissionsDto.builder()
                         .inProgress(inProgressMissionDtos)
                         .completed(completedMissionDtos)
+                        .incomplete(incompleteMissionDtos) // 미완료 미션 목록 추가
                         .build())
                 .build();
     }
