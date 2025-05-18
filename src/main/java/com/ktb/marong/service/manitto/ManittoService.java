@@ -36,10 +36,12 @@ public class ManittoService {
     private final UserMissionRepository userMissionRepository;
     private final ManittoRepository manittoRepository;
     private final PostRepository postRepository;
+    private final AnonymousNameRepository anonymousNameRepository;
 
     /**
-     * 현재 마니또가 담당하는 마니띠 정보 조회
+     * 현재 사용자의 마니또/마니띠 역할 및 정보 조회
      * AI가 알려준 마니또 매칭 정보를 DB에서 조회
+     * MVP에서는 모든 사용자가 기본 그룹(ID: 1)에 속한다고 가정
      */
     @Transactional(readOnly = true)
     public ManittoInfoResponseDto getCurrentManittoInfo(Long userId) {
@@ -47,33 +49,56 @@ public class ManittoService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 현재 주차에 해당하는 마니또 매칭 정보 조회
+        // 현재 주차에 해당하는 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
+        String remainingTime = calculateRemainingTimeUntilReveal();
 
-        // 사용자(마니또)의 마니띠를 조회
-        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 1. 사용자가 마니또인지 확인 (manitto_id로 매칭된 레코드가 있는지 확인)
+        List<Manitto> isManittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
-        // 매칭 정보가 없을 경우 기본 응답
-        if (manittoList.isEmpty()) {
+        if (!isManittoList.isEmpty()) {
+            // 사용자가 마니또인 경우 - 담당하는 마니띠 정보 반환
+            Manitto manitto = isManittoList.get(0);
+
             return ManittoInfoResponseDto.builder()
+                    .role("manitto")
                     .manittee(ManittoInfoResponseDto.ManitteeDto.builder()
-                            .name("아직 매칭된 마니띠가 없습니다")
-                            .profileImage(null)
-                            .remainingTime(calculateRemainingTimeUntilReveal())
+                            .name(manitto.getManittee().getNickname())  // 마니띠의 실명
+                            .profileImage(manitto.getManittee().getProfileImageUrl()) // 마니띠의 프로필 이미지
+                            .remainingTime(remainingTime)
+                            .build())
+                    .manitto(null) // 마니또인 경우에는 null
+                    .build();
+        }
+
+        // 2. 사용자가 마니띠인지 확인 (manittee_id로 매칭된 레코드가 있는지 확인)
+        List<Manitto> isManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+
+        if (!isManitteeList.isEmpty()) {
+            // 사용자가 마니띠인 경우 - 담당 마니또의 익명 이름 반환
+            Manitto manitto = isManitteeList.get(0);
+            Long manittoId = manitto.getManitto().getId();
+
+            // 마니또의 익명 이름 조회
+            String manittoAnonymousName = anonymousNameRepository
+                    .findAnonymousNameByUserIdAndWeek(manittoId, currentWeek)
+                    .orElse("익명의 마니또"); // 기본값
+
+            return ManittoInfoResponseDto.builder()
+                    .role("manittee")
+                    .manittee(null) // 마니띠인 경우에는 null
+                    .manitto(ManittoInfoResponseDto.ManittoDto.builder()
+                            .anonymousName(manittoAnonymousName) // 마니또의 익명 이름
+                            .remainingTime(remainingTime)
                             .build())
                     .build();
         }
 
-        // 여러 매칭 중 첫 번째 매칭 정보 사용
-        Manitto manitto = manittoList.get(0);
-
-        // 다음 공개까지 남은 시간 계산 (금요일 오후 5시 기준)
-        String remainingTime = calculateRemainingTimeUntilReveal();
-
+        // 3. 매칭이 아예 없는 경우
         return ManittoInfoResponseDto.builder()
                 .manittee(ManittoInfoResponseDto.ManitteeDto.builder()
-                        .name(manitto.getManittee().getNickname())  // 마니띠(대상자)의 이름
-                        .profileImage(manitto.getManittee().getProfileImageUrl()) // 마니띠(대상자)의 프로필 이미지
+                        .name("아직 매칭된 마니띠가 없습니다")
+                        .profileImage(null)
                         .remainingTime(remainingTime)
                         .build())
                 .build();
