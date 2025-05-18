@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface PlaceRecommendationSessionRepository extends JpaRepository<PlaceRecommendationSession, Long> {
-    List<PlaceRecommendationSession> findByManitteeIdAndWeek(Long manitteeId, Integer week);
+    List<PlaceRecommendationSession> findByManittoIdAndWeek(Long manittoId, Integer week);
 }

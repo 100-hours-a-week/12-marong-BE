@@ -53,7 +53,7 @@ public enum ErrorCode {
     MISSION_NOT_ASSIGNED(400, "할당되지 않은 미션입니다."),
 
     // 마니또 관련 에러
-    MANITTO_NOT_FOUND(404, "현재 매칭된 마니또가 없습니다."),
+    MANITTO_NOT_FOUND(404, "현재 매칭된 마니띠가 없습니다."),
     MISSION_STATUS_NOT_FOUND(404, "진행 중인 미션이 없습니다."),
 
     // 추천 관련 에러

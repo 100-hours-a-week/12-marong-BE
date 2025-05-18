@@ -79,14 +79,14 @@ public class FeedService {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이번 주차에 이미 해당 미션을 완료했습니다.");
         }
 
-        // 현재 사용자의 마니또 정보 조회
-        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 현재 사용자의 마니띠 정보 조회
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND);
         }
 
         Manitto manitto = manittoList.get(0);
-        String manittoName = manitto.getManitto().getNickname(); // 필드 이름 변경: receiver -> manitto // 서버에서 ManittoName 설정
+        String manitteeName = manitto.getManittee().getNickname(); // 마니띠(대상자)의 이름
 
         // 익명 이름 조회 - 현재 주차 정보 추가
         String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndWeek(userId, currentWeek)
@@ -109,7 +109,7 @@ public class FeedService {
                 .mission(mission)
                 .week(currentWeek) // 주차 정보 추가
                 .anonymousSnapshotName(anonymousName)
-                .manittoName(manittoName)
+                .manitteeName(manitteeName)
                 .content(requestDto.getContent())
                 .imageUrl(imageUrl)
                 .build();
@@ -235,7 +235,7 @@ public class FeedService {
                         .mission(post.getMission())
                         .week(week)
                         .anonymousSnapshotName(post.getAnonymousSnapshotName())
-                        .manittoName(post.getManittoName())
+                        .manitteeName(post.getManitteeName())
                         .content(post.getContent())
                         .imageUrl(post.getImageUrl())
                         .build();

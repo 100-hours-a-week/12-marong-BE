@@ -24,18 +24,18 @@ public class ManittoController {
     private final ManittoService manittoService;
 
     /**
-     * 현재 마니또 정보 조회
+     * 현재 마니또가 담당하는 마니띠 정보 조회
      * MVP에서는 모든 사용자가 기본 그룹(ID: 1)에 속한다고 가정
      */
     @GetMapping
     public ResponseEntity<?> getCurrentManitto(@CurrentUser Long userId) {
-        log.info("마니또 정보 요청: userId={}", userId);
+        log.info("마니또가 담당하는 마니띠 정보 요청: userId={}", userId);
 
         ManittoInfoResponseDto response = manittoService.getCurrentManittoInfo(userId);
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,
-                "manitto_info_retrieved",
+                "manittee_info_retrieved",
                 null
         ));
     }

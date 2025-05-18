@@ -43,8 +43,8 @@ public class PlaceRecommendationService {
 
         // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
         int currentWeek = WeekCalculator.getCurrentWeek();
-        // findByGiverIdAndGroupIdAndWeek를 findByManitteeIdAndGroupIdAndWeek로 변경
-        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 사용자(마니또)의 마니띠 조회
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
         // 마니또 매칭이 없는 경우 예외 발생
         if (manittoList.isEmpty()) {
@@ -55,7 +55,7 @@ public class PlaceRecommendationService {
         Manitto manitto = manittoList.get(0);
 
         // 현재 주차에 해당하는 장소 추천 세션 조회
-        List<PlaceRecommendationSession> sessions = sessionRepository.findByManitteeIdAndWeek(userId, currentWeek);
+        List<PlaceRecommendationSession> sessions = sessionRepository.findByManittoIdAndWeek(userId, currentWeek);
 
         // 세션이 없는 경우 예외 발생
         if (sessions.isEmpty()) {

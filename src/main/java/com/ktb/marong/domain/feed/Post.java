@@ -45,8 +45,8 @@ public class Post {
     @Column(name = "anonymous_snapshot_name", nullable = false)
     private String anonymousSnapshotName;
 
-    @Column(name = "manitto_name")
-    private String manittoName;
+    @Column(name = "manittee_name")
+    private String manitteeName;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
@@ -67,12 +67,12 @@ public class Post {
 
     @Builder
     public Post(User user, Mission mission, Integer week, String anonymousSnapshotName,
-                String manittoName, String content, String imageUrl) {
+                String manitteeName, String content, String imageUrl) {
         this.user = user;
         this.mission = mission;
         this.week = week;
         this.anonymousSnapshotName = anonymousSnapshotName;
-        this.manittoName = manittoName;
+        this.manitteeName = manitteeName;
         this.content = content;
         this.imageUrl = imageUrl;
     }

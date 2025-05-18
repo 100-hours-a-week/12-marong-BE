@@ -21,7 +21,7 @@ public class PostResponseDto {
     private Long feedId;
     private String author;
     private String missionTitle;
-    private String manittoName;
+    private String manitteeName;
     private String content;
     private int likes;
     private LocalDateTime createdAt;
@@ -36,7 +36,7 @@ public class PostResponseDto {
                 .feedId(post.getId())
                 .author(post.getAnonymousSnapshotName())
                 .missionTitle(post.getMission().getTitle())
-                .manittoName(post.getManittoName())
+                .manitteeName(post.getManitteeName())
                 .content(post.getContent())
                 .likes(likesCount)
                 .createdAt(post.getCreatedAt())
