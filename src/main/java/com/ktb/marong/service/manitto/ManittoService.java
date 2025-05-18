@@ -38,7 +38,7 @@ public class ManittoService {
     private final PostRepository postRepository;
 
     /**
-     * 현재 마니또 정보 조회
+     * 현재 마니또가 담당하는 마니띠 정보 조회
      * AI가 알려준 마니또 매칭 정보를 DB에서 조회
      */
     @Transactional(readOnly = true)
@@ -50,15 +50,14 @@ public class ManittoService {
         // 현재 주차에 해당하는 마니또 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
 
-        // 사용자(마니띠)의 마니또를 조회
-        // findByGiverIdAndGroupIdAndWeek를 findByManitteeIdAndGroupIdAndWeek로 변경
-        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 사용자(마니또)의 마니띠를 조회
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
         // 매칭 정보가 없을 경우 기본 응답
         if (manittoList.isEmpty()) {
             return ManittoInfoResponseDto.builder()
-                    .manitto(ManittoInfoResponseDto.ManittoDto.builder()
-                            .name("아직 매칭된 마니또가 없습니다")
+                    .manittee(ManittoInfoResponseDto.ManitteeDto.builder()
+                            .name("아직 매칭된 마니띠가 없습니다")
                             .profileImage(null)
                             .remainingTime(calculateRemainingTimeUntilReveal())
                             .build())
@@ -72,9 +71,9 @@ public class ManittoService {
         String remainingTime = calculateRemainingTimeUntilReveal();
 
         return ManittoInfoResponseDto.builder()
-                .manitto(ManittoInfoResponseDto.ManittoDto.builder()
-                        .name(manitto.getManitto().getNickname())  // receiver에서 manitto로 변경
-                        .profileImage(manitto.getManitto().getProfileImageUrl()) // receiver에서 manitto로 변경
+                .manittee(ManittoInfoResponseDto.ManitteeDto.builder()
+                        .name(manitto.getManittee().getNickname())  // 마니띠(대상자)의 이름
+                        .profileImage(manitto.getManittee().getProfileImageUrl()) // 마니띠(대상자)의 프로필 이미지
                         .remainingTime(remainingTime)
                         .build())
                 .build();
@@ -202,7 +201,7 @@ public class ManittoService {
         }
 
         // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
-        List<Manitto> manittoList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
 
         // 마니또 매칭 정보가 없는 경우 예외 발생
         if (manittoList.isEmpty()) {

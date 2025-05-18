@@ -10,13 +10,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ManittoInfoResponseDto {
-    private ManittoDto manitto;
+    private ManitteeDto manittee;
 
     @Getter
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ManittoDto {
+    public static class ManitteeDto {
         private String name;
         private String profileImage;
         private String remainingTime;  // 다음 마니또 공개까지 남은 시간 (HH:MM:SS 형식)

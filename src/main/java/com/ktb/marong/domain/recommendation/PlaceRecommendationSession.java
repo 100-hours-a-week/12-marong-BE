@@ -20,12 +20,12 @@ public class PlaceRecommendationSession {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manittee_id", nullable = false)
-    private User manittee;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manitto_id", nullable = false)
     private User manitto;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manittee_id", nullable = false)
+    private User manittee;
 
     @Column(name = "week", nullable = false)
     private Integer week;
@@ -34,9 +34,9 @@ public class PlaceRecommendationSession {
     private LocalDateTime createdAt;
 
     @Builder
-    public PlaceRecommendationSession(User manittee, User manitto, Integer week) {
-        this.manittee = manittee;
+    public PlaceRecommendationSession(User manitto, User manittee, Integer week) {
         this.manitto = manitto;
+        this.manittee = manittee;
         this.week = week;
         this.createdAt = LocalDateTime.now();
     }

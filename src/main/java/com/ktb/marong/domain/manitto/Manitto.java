@@ -21,21 +21,21 @@ public class Manitto {
     private Long groupId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manittee_id", nullable = false) // giver_id에서 변경
-    private User manittee;  // 현재 사용자
+    @JoinColumn(name = "manitto_id", nullable = false) // 미션을 수행하는 사람
+    private User manitto;  // 현재 사용자 (미션 수행자)
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manitto_id", nullable = false) // receiver_id에서 변경
-    private User manitto;  // 대상 사용자
+    @JoinColumn(name = "manittee_id", nullable = false) // 미션을 받는 사람
+    private User manittee;  // 대상 사용자 (미션 받는 사람)
 
     @Column(name = "week", nullable = false)
     private Integer week;
 
     @Builder
-    public Manitto(Long groupId, User manittee, User manitto, Integer week) {
+    public Manitto(Long groupId, User manitto, User manittee, Integer week) {
         this.groupId = groupId;
-        this.manittee = manittee;
         this.manitto = manitto;
+        this.manittee = manittee;
         this.week = week;
     }
 }
