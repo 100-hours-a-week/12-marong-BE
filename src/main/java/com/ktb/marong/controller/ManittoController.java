@@ -35,7 +35,7 @@ public class ManittoController {
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,
-                "manittee_info_retrieved",
+                "manitto_info_retrieved",
                 null
         ));
     }
