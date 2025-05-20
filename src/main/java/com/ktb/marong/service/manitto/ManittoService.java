@@ -62,12 +62,9 @@ public class ManittoService {
 
             return ManittoInfoResponseDto.builder()
                     .role("manitto")
-                    .manittee(ManittoInfoResponseDto.ManitteeDto.builder()
-                            .name(manitto.getManittee().getNickname())  // 마니띠의 실명
-                            .profileImage(manitto.getManittee().getProfileImageUrl()) // 마니띠의 프로필 이미지
-                            .remainingTime(remainingTime)
-                            .build())
-                    .manitto(null) // 마니또인 경우에는 null
+                    .remainingTime(remainingTime)
+                    .manitteeName(manitto.getManittee().getNickname())
+                    .manitteeProfileImage(manitto.getManittee().getProfileImageUrl())
                     .build();
         }
 
@@ -86,21 +83,15 @@ public class ManittoService {
 
             return ManittoInfoResponseDto.builder()
                     .role("manittee")
-                    .manittee(null) // 마니띠인 경우에는 null
-                    .manitto(ManittoInfoResponseDto.ManittoDto.builder()
-                            .anonymousName(manittoAnonymousName) // 마니또의 익명 이름
-                            .remainingTime(remainingTime)
-                            .build())
+                    .remainingTime(remainingTime)
+                    .manittoAnonymousName(manittoAnonymousName)
                     .build();
         }
 
         // 3. 매칭이 아예 없는 경우
         return ManittoInfoResponseDto.builder()
-                .manittee(ManittoInfoResponseDto.ManitteeDto.builder()
-                        .name("아직 매칭된 마니띠가 없습니다")
-                        .profileImage(null)
-                        .remainingTime(remainingTime)
-                        .build())
+                .role("none")
+                .remainingTime(remainingTime)
                 .build();
     }
 
