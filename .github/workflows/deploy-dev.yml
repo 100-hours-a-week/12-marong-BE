@@ -25,7 +25,6 @@ jobs:
         run: |
           echo "${{ env.APPLICATION }}" > ./src/main/resources/application.properties
           echo "${{ env.APPLICATION_PROD }}" > ./src/main/resources/application-prod.properties
-          fi
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
