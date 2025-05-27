@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/survey").authenticated()
+                        .requestMatchers("/groups/**").authenticated()
                         // 인증이 필요한 API
                         .anyRequest().authenticated()
                 )
