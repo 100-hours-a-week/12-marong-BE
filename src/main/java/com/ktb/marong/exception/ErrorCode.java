@@ -57,7 +57,16 @@ public enum ErrorCode {
     MISSION_STATUS_NOT_FOUND(404, "진행 중인 미션이 없습니다."),
 
     // 추천 관련 에러
-    RECOMMENDATION_NOT_FOUND(404, "추천 정보를 찾을 수 없습니다.");
+    RECOMMENDATION_NOT_FOUND(404, "추천 정보를 찾을 수 없습니다."),
+
+    // 그룹 관련 에러
+    MAX_GROUPS_EXCEEDED(400, "사용자당 최대 4개의 그룹까지 생성/가입할 수 있습니다."),
+    GROUP_NAME_DUPLICATED(409, "동일한 그룹 이름이 이미 존재합니다."),
+    INVITE_CODE_DUPLICATED(409, "초대코드가 이미 사용 중입니다. 다른 코드를 입력해주세요."),
+    GROUP_NOT_FOUND(404, "해당 그룹을 찾을 수 없습니다."),
+    INVALID_INVITE_CODE(400, "유효하지 않은 초대코드입니다."),
+    ALREADY_JOINED_GROUP(409, "이미 가입된 그룹입니다."),
+    GROUP_NICKNAME_REQUIRED(400, "그룹 내 사용자 닉네임 설정이 필요합니다.");
 
     private final int status;
     private final String message;
