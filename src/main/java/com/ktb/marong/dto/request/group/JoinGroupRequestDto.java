@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 public class JoinGroupRequestDto {
 
     @NotBlank(message = "초대 코드는 필수입니다.")
-    @Pattern(regexp = "^[0-9]{6}$", message = "초대 코드는 6자리 숫자여야 합니다.")
+    @Pattern(regexp = "^[A-Za-z0-9]{6}$", message = "초대 코드는 영어와 숫자를 포함한 6자리여야 합니다.")
     private String inviteCode;
 
     @NotBlank(message = "그룹 내 사용자 닉네임은 필수입니다.")
