@@ -211,26 +211,26 @@ public class GroupService {
      */
     @Transactional
     public void updateGroupProfile(Long userId, Long groupId, UpdateGroupProfileRequestDto requestDto,
-                                   MultipartFile profileImage) {
+                                   MultipartFile groupUserProfileImage) {
         log.info("그룹 프로필 업데이트: userId={}, groupId={}", userId, groupId);
 
         // 사용자-그룹 관계 조회
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
 
-        // 프로필 이미지 업로드 처리 (선택사항)
-        String profileImageUrl = requestDto.getGroupUserProfileImageUrl();
-        if (profileImage != null && !profileImage.isEmpty()) {
+        // 그룹 내 사용자 프로필 이미지 업로드 처리 (선택사항)
+        String groupUserProfileImageUrl = userGroup.getGroupUserProfileImageUrl(); // 기존 이미지 URL 유지
+        if (groupUserProfileImage != null && !groupUserProfileImage.isEmpty()) {
             try {
-                profileImageUrl = fileUploadService.uploadFile(profileImage, "profiles");
+                groupUserProfileImageUrl = fileUploadService.uploadFile(groupUserProfileImage, "profiles");
             } catch (IOException e) {
-                log.error("프로필 이미지 업로드 실패: {}", e.getMessage());
+                log.error("그룹 내 사용자 프로필 이미지 업로드 실패: {}", e.getMessage());
                 throw new CustomException(ErrorCode.FILE_UPLOAD_ERROR);
             }
         }
 
         // 그룹 내 사용자 프로필 정보 업데이트
-        userGroup.updateGroupUserProfile(requestDto.getGroupUserNickname(), profileImageUrl);
+        userGroup.updateGroupUserProfile(requestDto.getGroupUserNickname(), groupUserProfileImageUrl);
         userGroupRepository.save(userGroup);
 
         log.info("그룹 프로필 업데이트 완료: userId={}, groupId={}", userId, groupId);

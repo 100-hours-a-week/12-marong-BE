@@ -100,15 +100,13 @@ public class GroupController {
             @CurrentUser Long userId,
             @PathVariable Long groupId,
             @RequestParam("groupUserNickname") String groupUserNickname,
-            @RequestParam(value = "groupUserProfileImageUrl", required = false) String groupUserProfileImageUrl,
-            @RequestParam(value = "profileImage", required = false) MultipartFile profileImage) {
+            @RequestParam(value = "groupUserProfileImage", required = false) MultipartFile groupUserProfileImage) {
 
         log.info("그룹 프로필 업데이트 요청: userId={}, groupId={}", userId, groupId);
 
-        UpdateGroupProfileRequestDto requestDto = new UpdateGroupProfileRequestDto(
-                groupUserNickname, groupUserProfileImageUrl);
+        UpdateGroupProfileRequestDto requestDto = new UpdateGroupProfileRequestDto(groupUserNickname);
 
-        groupService.updateGroupProfile(userId, groupId, requestDto, profileImage);
+        groupService.updateGroupProfile(userId, groupId, requestDto, groupUserProfileImage);
 
         return ResponseEntity.ok(ApiResponse.success(
                 null,
