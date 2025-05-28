@@ -66,6 +66,10 @@ public enum ErrorCode {
     INVITE_CODE_DUPLICATED(409, "초대코드가 이미 사용 중입니다. 다른 코드를 입력해주세요."),
     GROUP_NOT_FOUND(404, "해당 그룹을 찾을 수 없습니다."),
     INVALID_INVITE_CODE(400, "유효하지 않은 초대코드입니다."),
+    INVALID_INVITE_CODE_FORMAT(400, "초대 코드는 영어와 숫자를 포함한 정확히 6자리여야 합니다."),
+    INVITE_CODE_TOO_SHORT(400, "초대 코드가 너무 짧습니다. 6자리로 입력해주세요."),
+    INVITE_CODE_TOO_LONG(400, "초대 코드가 너무 깁니다. 6자리로 입력해주세요."),
+    INVITE_CODE_INVALID_CHARACTERS(400, "초대 코드는 영어와 숫자만 사용할 수 있습니다."),
     ALREADY_JOINED_GROUP(409, "이미 가입된 그룹입니다."),
     GROUP_NICKNAME_REQUIRED(400, "그룹 내 사용자 닉네임 설정이 필요합니다.");
 

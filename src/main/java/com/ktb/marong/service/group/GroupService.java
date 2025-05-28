@@ -1,5 +1,6 @@
 package com.ktb.marong.service.group;
 
+import com.ktb.marong.common.util.InviteCodeValidator;
 import com.ktb.marong.domain.group.Group;
 import com.ktb.marong.domain.group.UserGroup;
 import com.ktb.marong.domain.user.User;
@@ -45,7 +46,8 @@ public class GroupService {
     @Transactional
     public CreateGroupResponseDto createGroup(Long userId, CreateGroupRequestDto requestDto,
                                               MultipartFile groupImage, MultipartFile groupUserProfileImage) {
-        log.info("그룹 생성 요청: userId={}, groupName={}", userId, requestDto.getGroupName());
+        log.info("그룹 생성 요청: userId={}, groupName={}, inviteCode={}",
+                userId, requestDto.getGroupName(), requestDto.getInviteCode());
 
         // 사용자 조회
         User user = userRepository.findById(userId)
@@ -54,13 +56,17 @@ public class GroupService {
         // 그룹 개수 제한 체크
         checkGroupLimit(userId);
 
+        // 초대 코드 유효성 검증
+        InviteCodeValidator.validateInviteCode(requestDto.getInviteCode());
+        String normalizedInviteCode = InviteCodeValidator.normalizeInviteCode(requestDto.getInviteCode());
+
         // 그룹 이름 중복 체크
         if (groupRepository.existsByName(requestDto.getGroupName())) {
             throw new CustomException(ErrorCode.GROUP_NAME_DUPLICATED);
         }
 
-        // 초대 코드 중복 체크
-        if (groupRepository.existsByInviteCode(requestDto.getInviteCode())) {
+        // 초대 코드 중복 체크 (대소문자 구분 안함)
+        if (groupRepository.existsByInviteCode(normalizedInviteCode)) {
             throw new CustomException(ErrorCode.INVITE_CODE_DUPLICATED);
         }
 
@@ -90,7 +96,7 @@ public class GroupService {
         Group group = Group.builder()
                 .name(requestDto.getGroupName())
                 .description(requestDto.getDescription())
-                .inviteCode(requestDto.getInviteCode())
+                .inviteCode(normalizedInviteCode) // 정규화된 초대 코드 사용
                 .imageUrl(groupImageUrl)
                 .build();
 
@@ -107,12 +113,13 @@ public class GroupService {
 
         userGroupRepository.save(userGroup);
 
-        log.info("그룹 생성 완료: groupId={}, groupName={}", savedGroup.getId(), savedGroup.getName());
+        log.info("그룹 생성 완료: groupId={}, groupName={}, inviteCode={}",
+                savedGroup.getId(), savedGroup.getName(), normalizedInviteCode);
 
         return CreateGroupResponseDto.builder()
                 .groupId(savedGroup.getId())
                 .groupName(savedGroup.getName())
-                .inviteCode(savedGroup.getInviteCode())
+                .inviteCode(normalizedInviteCode)
                 .build();
     }
 
@@ -130,14 +137,22 @@ public class GroupService {
         // 그룹 개수 제한 체크
         checkGroupLimit(userId);
 
-        // 초대 코드로 그룹 조회
-        Group group = groupRepository.findByInviteCode(requestDto.getInviteCode())
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INVITE_CODE));
+        // 초대 코드 유효성 검증
+        InviteCodeValidator.validateInviteCode(requestDto.getInviteCode());
+        String normalizedInviteCode = InviteCodeValidator.normalizeInviteCode(requestDto.getInviteCode());
+
+        // 초대 코드로 그룹 조회 (대소문자 구분 안함)
+        Group group = groupRepository.findByInviteCode(normalizedInviteCode)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INVITE_CODE,
+                        "존재하지 않는 초대코드입니다. 초대코드를 다시 확인해주세요."));
 
         // 이미 가입한 그룹인지 확인
         if (userGroupRepository.existsByUserIdAndGroupId(userId, group.getId())) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_GROUP);
         }
+
+        // 그룹 멤버 수 제한 체크
+        checkGroupMemberLimit(group.getId());
 
         // 그룹 가입
         UserGroup userGroup = UserGroup.builder()
@@ -150,8 +165,8 @@ public class GroupService {
 
         userGroupRepository.save(userGroup);
 
-        log.info("그룹 가입 완료: userId={}, groupId={}, groupName={}",
-                userId, group.getId(), group.getName());
+        log.info("그룹 가입 완료: userId={}, groupId={}, groupName={}, inviteCode={}",
+                userId, group.getId(), group.getName(), normalizedInviteCode);
 
         return JoinGroupResponseDto.builder()
                 .groupId(group.getId())
