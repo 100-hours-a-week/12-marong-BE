@@ -31,7 +31,8 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
     /**
      * 특정 사용자와 그룹의 관계 조회
      */
-    Optional<UserGroup> findByUserIdAndGroupId(Long userId, Long groupId);
+    @Query("SELECT ug FROM UserGroup ug JOIN FETCH ug.group WHERE ug.user.id = :userId AND ug.group.id = :groupId")
+    Optional<UserGroup> findByUserIdAndGroupId(@Param("userId") Long userId, @Param("groupId") Long groupId);
 
     /**
      * 특정 그룹의 멤버 수 조회

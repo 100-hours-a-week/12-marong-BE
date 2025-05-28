@@ -170,6 +170,43 @@ public class GroupService {
     }
 
     /**
+     * 그룹 상세 정보 조회 (멤버 수 제한 정보 포함)
+     */
+    @Transactional(readOnly = true)
+    public GroupDetailResponseDto getGroupDetail(Long userId, Long groupId) {
+        log.info("그룹 상세 정보 조회: userId={}, groupId={}", userId, groupId);
+
+        // 사용자가 해당 그룹에 속해있는지 확인 -> (JOIN FETCH 사용으로 LazyInitializationException 해결)
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 현재 멤버 수 조회
+        int currentMemberCount = userGroupRepository.countByGroupId(groupId);
+
+        // 그룹 정보는 이미 UserGroup과 함께 가져왔으므로 별도 조회 불필요
+        Group group = userGroup.getGroup();
+
+        // 응답 생성
+        GroupDetailResponseDto response = GroupDetailResponseDto.builder()
+                .groupId(group.getId())
+                .groupName(group.getName())
+                .description(group.getDescription())
+                .imageUrl(group.getImageUrl())
+                .inviteCode(group.getInviteCode())
+                .currentMemberCount(currentMemberCount)
+                .maxMemberCount(MAX_MEMBERS_PER_GROUP) // 최대 멤버 수
+                .myGroupUserNickname(userGroup.getGroupUserNickname())
+                .myGroupUserProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
+                .isOwner(userGroup.getIsOwner())
+                .joinedAt(userGroup.getJoinedAt())
+                .build();
+
+        log.info("그룹 상세 정보 조회 완료: groupId={}, groupName={}", groupId, group.getName());
+
+        return response;
+    }
+
+    /**
      * 그룹 프로필 정보 업데이트
      */
     @Transactional

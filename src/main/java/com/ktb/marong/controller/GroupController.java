@@ -5,6 +5,7 @@ import com.ktb.marong.dto.request.group.JoinGroupRequestDto;
 import com.ktb.marong.dto.request.group.UpdateGroupProfileRequestDto;
 import com.ktb.marong.dto.response.common.ApiResponse;
 import com.ktb.marong.dto.response.group.CreateGroupResponseDto;
+import com.ktb.marong.dto.response.group.GroupDetailResponseDto;
 import com.ktb.marong.dto.response.group.GroupResponseDto;
 import com.ktb.marong.dto.response.group.JoinGroupResponseDto;
 import com.ktb.marong.security.CurrentUser;
@@ -112,6 +113,23 @@ public class GroupController {
         return ResponseEntity.ok(ApiResponse.success(
                 null,
                 "group_profile_updated",
+                null
+        ));
+    }
+
+    /**
+     * 특정 그룹 상세 정보 조회 (멤버 수 제한 정보 포함)
+     */
+    @GetMapping("/{groupId}")
+    public ResponseEntity<?> getGroupDetail(@CurrentUser Long userId, @PathVariable Long groupId) {
+        log.info("그룹 상세 정보 조회: userId={}, groupId={}", userId, groupId);
+
+        // GroupService로 위임하여 처리
+        GroupDetailResponseDto response = groupService.getGroupDetail(userId, groupId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                response,
+                "group_detail_retrieved",
                 null
         ));
     }
