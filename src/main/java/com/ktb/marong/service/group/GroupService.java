@@ -7,6 +7,7 @@ import com.ktb.marong.dto.request.group.CreateGroupRequestDto;
 import com.ktb.marong.dto.request.group.JoinGroupRequestDto;
 import com.ktb.marong.dto.request.group.UpdateGroupProfileRequestDto;
 import com.ktb.marong.dto.response.group.CreateGroupResponseDto;
+import com.ktb.marong.dto.response.group.GroupDetailResponseDto;
 import com.ktb.marong.dto.response.group.GroupResponseDto;
 import com.ktb.marong.dto.response.group.JoinGroupResponseDto;
 import com.ktb.marong.exception.CustomException;
@@ -36,6 +37,7 @@ public class GroupService {
     private final FileUploadService fileUploadService;
 
     private static final int MAX_GROUPS_PER_USER = 4;
+    private static final int MAX_MEMBERS_PER_GROUP = 150;
 
     /**
      * 그룹 생성
@@ -198,12 +200,22 @@ public class GroupService {
     }
 
     /**
-     * 그룹 개수 제한 체크
+     * 그룹 개수 제한 체크 (사용자당 최대 4개)
      */
     private void checkGroupLimit(Long userId) {
         int currentGroupCount = userGroupRepository.countByUserId(userId);
         if (currentGroupCount >= MAX_GROUPS_PER_USER) {
             throw new CustomException(ErrorCode.MAX_GROUPS_EXCEEDED);
+        }
+    }
+
+    /**
+     * 그룹 멤버 수 제한 체크 (그룹당 최대 150명)
+     */
+    private void checkGroupMemberLimit(Long groupId) {
+        int currentMemberCount = userGroupRepository.countByGroupId(groupId);
+        if (currentMemberCount >= MAX_MEMBERS_PER_GROUP) {
+            throw new CustomException(ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED);
         }
     }
 }
