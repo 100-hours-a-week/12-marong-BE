@@ -24,9 +24,15 @@ jobs:
 
       - name: Set Properies Files based on Branch
         run: |
-          echo "${{ secrets.APPLICATION }}" > ./src/main/resources/application.properties
-          echo "${{ secrets.APPLICATION_LOCAL }}" > ./src/main/resources/application-local.properties
-          echo "${{ secrets.APPLICATION_PROD }}" > ./src/main/resources/application-prod.properties
+          cat <<EOF > ./src/main/resources/application.properties
+          ${{ secrets.APPLICATION }}
+          EOF
+          cat <<EOF > ./src/main/resources/application-local.properties
+          ${{ secrets.APPLICATION_LOCAL }}
+          EOF
+          cat <<EOF > ./src/main/resources/application-prod.properties
+          ${{ secrets.APPLICATION_PROD }}
+          EOF
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
