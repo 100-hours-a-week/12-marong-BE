@@ -156,7 +156,7 @@ public class GroupService {
         return JoinGroupResponseDto.builder()
                 .groupId(group.getId())
                 .groupName(group.getName())
-                .myGroupUserNickname(requestDto.getGroupUserNickname())
+                .myNickname(requestDto.getGroupUserNickname())
                 .build();
     }
 
@@ -199,12 +199,12 @@ public class GroupService {
                 .groupId(group.getId())
                 .groupName(group.getName())
                 .description(group.getDescription())
-                .imageUrl(group.getImageUrl())
+                .groupImageUrl(group.getImageUrl())
                 .inviteCode(group.getInviteCode())
                 .currentMemberCount(currentMemberCount)
                 .maxMemberCount(MAX_MEMBERS_PER_GROUP) // 최대 멤버 수
-                .myGroupUserNickname(userGroup.getGroupUserNickname())
-                .myGroupUserProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
+                .myNickname(userGroup.getGroupUserNickname())
+                .myProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
                 .isOwner(userGroup.getIsOwner())
                 .joinedAt(userGroup.getJoinedAt())
                 .build();

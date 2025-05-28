@@ -15,12 +15,12 @@ public class GroupDetailResponseDto {
     private Long groupId;
     private String groupName;
     private String description;
-    private String imageUrl;
+    private String groupImageUrl;
     private String inviteCode;
     private int currentMemberCount;
     private int maxMemberCount;
-    private String myGroupUserNickname;
-    private String myGroupUserProfileImageUrl;
+    private String myNickname;
+    private String myProfileImageUrl;
     private boolean isOwner;
     private LocalDateTime joinedAt;
 }

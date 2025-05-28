@@ -16,10 +16,10 @@ public class GroupResponseDto {
     private Long groupId;
     private String groupName;
     private String description;
-    private String imageUrl;
+    private String groupImageUrl;
     private int memberCount;
-    private String myGroupUserNickname;
-    private String myGroupUserProfileImageUrl;
+    private String myNickname;
+    private String myProfileImageUrl;
     private boolean isOwner;
     private LocalDateTime joinedAt;
 
@@ -28,10 +28,10 @@ public class GroupResponseDto {
                 .groupId(userGroup.getGroup().getId())
                 .groupName(userGroup.getGroup().getName())
                 .description(userGroup.getGroup().getDescription())
-                .imageUrl(userGroup.getGroup().getImageUrl())
+                .groupImageUrl(userGroup.getGroup().getImageUrl())
                 .memberCount(memberCount)
-                .myGroupUserNickname(userGroup.getGroupUserNickname())
-                .myGroupUserProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
+                .myNickname(userGroup.getGroupUserNickname())
+                .myProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
                 .isOwner(userGroup.getIsOwner())
                 .joinedAt(userGroup.getJoinedAt())
                 .build();

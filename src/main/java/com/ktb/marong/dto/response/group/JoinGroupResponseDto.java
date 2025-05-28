@@ -12,5 +12,5 @@ import lombok.NoArgsConstructor;
 public class JoinGroupResponseDto {
     private Long groupId;
     private String groupName;
-    private String myGroupUserNickname;
+    private String myNickname;
 }
