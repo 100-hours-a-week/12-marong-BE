@@ -44,7 +44,7 @@ public class GroupService {
      */
     @Transactional
     public CreateGroupResponseDto createGroup(Long userId, CreateGroupRequestDto requestDto,
-                                              MultipartFile groupImage) {
+                                              MultipartFile groupImage, MultipartFile groupUserProfileImage) {
         log.info("그룹 생성 요청: userId={}, groupName={}", userId, requestDto.getGroupName());
 
         // 사용자 조회
@@ -75,8 +75,16 @@ public class GroupService {
             }
         }
 
-        // 사용자 프로필 이미지 업로드 처리 (선택사항)
-        String userProfileImageUrl = requestDto.getGroupUserProfileImageUrl();
+        // 사용자 프로필 이미지 업로드 처리
+        String userProfileImageUrl = null;
+        if (groupUserProfileImage != null && !groupUserProfileImage.isEmpty()) {
+            try {
+                userProfileImageUrl = fileUploadService.uploadFile(groupUserProfileImage, "profiles");
+            } catch (IOException e) {
+                log.error("그룹 내 사용자 프로필 이미지 업로드 실패: {}", e.getMessage());
+                throw new CustomException(ErrorCode.FILE_UPLOAD_ERROR);
+            }
+        }
 
         // 그룹 생성
         Group group = Group.builder()

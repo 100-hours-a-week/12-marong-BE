@@ -39,15 +39,16 @@ public class GroupController {
             @RequestParam("description") String description,
             @RequestParam("inviteCode") String inviteCode,
             @RequestParam("groupUserNickname") String groupUserNickname,
-            @RequestParam(value = "groupUserProfileImageUrl", required = false) String groupUserProfileImageUrl,
+            @RequestParam(value = "groupUserProfileImage", required = false) MultipartFile groupUserProfileImage, // 타입 변경: String -> MultipartFile
             @RequestParam(value = "groupImage", required = false) MultipartFile groupImage) {
 
         log.info("그룹 생성 요청: userId={}, groupName={}", userId, groupName);
 
+        // groupUserProfileImageUrl은 서비스에서 파일 업로드 후 URL을 생성하므로 null로 전달
         CreateGroupRequestDto requestDto = new CreateGroupRequestDto(
-                groupName, description, inviteCode, groupUserNickname, groupUserProfileImageUrl);
+                groupName, description, inviteCode, groupUserNickname, null); // groupUserProfileImageUrl을 null로 설정
 
-        CreateGroupResponseDto response = groupService.createGroup(userId, requestDto, groupImage);
+        CreateGroupResponseDto response = groupService.createGroup(userId, requestDto, groupImage, groupUserProfileImage); // 파라미터 추가
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
