@@ -7,11 +7,8 @@ import java.util.regex.Pattern;
 
 public class InviteCodeValidator {
 
-    // 영어 대문자, 소문자, 숫자만 허용하는 정규식 (6자리 정확히)
-    private static final Pattern INVITE_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9]{6}$");
-
     // 영어만 포함하는지 확인하는 정규식
-    private static final Pattern ONLY_LETTERS_PATTERN = Pattern.compile("^[A-Za-z]+$");
+    private static final Pattern ONLY_LETTERS_PATTERN = Pattern.compile("^[A-Z]+$");
 
     // 숫자만 포함하는지 확인하는 정규식
     private static final Pattern ONLY_DIGITS_PATTERN = Pattern.compile("^[0-9]+$");

@@ -10,7 +10,6 @@ import com.ktb.marong.dto.response.group.GroupResponseDto;
 import com.ktb.marong.dto.response.group.JoinGroupResponseDto;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.group.GroupService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,17 +37,16 @@ public class GroupController {
             @RequestParam("groupName") String groupName,
             @RequestParam("description") String description,
             @RequestParam("inviteCode") String inviteCode,
+            @RequestParam(value = "groupImage", required = false) MultipartFile groupImage,
             @RequestParam("groupUserNickname") String groupUserNickname,
-            @RequestParam(value = "groupUserProfileImage", required = false) MultipartFile groupUserProfileImage, // 타입 변경: String -> MultipartFile
-            @RequestParam(value = "groupImage", required = false) MultipartFile groupImage) {
+            @RequestParam(value = "groupUserProfileImage", required = false) MultipartFile groupUserProfileImage) {
 
         log.info("그룹 생성 요청: userId={}, groupName={}", userId, groupName);
 
-        // groupUserProfileImageUrl은 서비스에서 파일 업로드 후 URL을 생성하므로 null로 전달
         CreateGroupRequestDto requestDto = new CreateGroupRequestDto(
-                groupName, description, inviteCode, groupUserNickname, null); // groupUserProfileImageUrl을 null로 설정
+                groupName, description, inviteCode, groupUserNickname, null);
 
-        CreateGroupResponseDto response = groupService.createGroup(userId, requestDto, groupImage, groupUserProfileImage); // 파라미터 추가
+        CreateGroupResponseDto response = groupService.createGroup(userId, requestDto, groupImage, groupUserProfileImage);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
@@ -61,14 +59,19 @@ public class GroupController {
     /**
      * 그룹 가입
      */
-    @PostMapping("/join")
+    @PostMapping(value = "/{groupId}/join", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> joinGroup(
             @CurrentUser Long userId,
-            @Valid @RequestBody JoinGroupRequestDto requestDto) {
+            @PathVariable Long groupId,
+            @RequestParam("inviteCode") String inviteCode,
+            @RequestParam("groupUserNickname") String groupUserNickname,
+            @RequestParam(value = "groupUserProfileImage", required = false) MultipartFile groupUserProfileImage) {
 
-        log.info("그룹 가입 요청: userId={}, inviteCode={}", userId, requestDto.getInviteCode());
+        log.info("그룹 가입 요청: userId={}, groupId={}, inviteCode={}", userId, groupId, inviteCode);
 
-        JoinGroupResponseDto response = groupService.joinGroup(userId, requestDto);
+        JoinGroupRequestDto requestDto = new JoinGroupRequestDto(inviteCode, groupUserNickname, null);
+
+        JoinGroupResponseDto response = groupService.joinGroup(userId, groupId, requestDto, groupUserProfileImage);
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,
@@ -123,7 +126,6 @@ public class GroupController {
     public ResponseEntity<?> getGroupDetail(@CurrentUser Long userId, @PathVariable Long groupId) {
         log.info("그룹 상세 정보 조회: userId={}, groupId={}", userId, groupId);
 
-        // GroupService로 위임하여 처리
         GroupDetailResponseDto response = groupService.getGroupDetail(userId, groupId);
 
         return ResponseEntity.ok(ApiResponse.success(

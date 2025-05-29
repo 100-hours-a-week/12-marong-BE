@@ -96,7 +96,7 @@ public class GroupService {
         Group group = Group.builder()
                 .name(requestDto.getGroupName())
                 .description(requestDto.getDescription())
-                .inviteCode(normalizedInviteCode) // 정규화된 초대 코드 사용
+                .inviteCode(normalizedInviteCode)
                 .imageUrl(groupImageUrl)
                 .build();
 
@@ -127,8 +127,8 @@ public class GroupService {
      * 그룹 가입
      */
     @Transactional
-    public JoinGroupResponseDto joinGroup(Long userId, JoinGroupRequestDto requestDto) {
-        log.info("그룹 가입 요청: userId={}, inviteCode={}", userId, requestDto.getInviteCode());
+    public JoinGroupResponseDto joinGroup(Long userId, Long groupId, JoinGroupRequestDto requestDto, MultipartFile groupUserProfileImage) {
+        log.info("그룹 가입 요청: userId={}, groupId={}, inviteCode={}", userId, groupId, requestDto.getInviteCode());
 
         // 사용자 조회
         User user = userRepository.findById(userId)
@@ -141,32 +141,47 @@ public class GroupService {
         InviteCodeValidator.validateInviteCode(requestDto.getInviteCode());
         String normalizedInviteCode = InviteCodeValidator.normalizeInviteCode(requestDto.getInviteCode());
 
-        // 초대 코드로 그룹 조회 (대소문자 구분 안함)
-        Group group = groupRepository.findByInviteCode(normalizedInviteCode)
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INVITE_CODE,
-                        "존재하지 않는 초대코드입니다. 초대코드를 다시 확인해주세요."));
+        // 그룹 ID로 그룹 조회
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 입력된 초대코드와 그룹의 초대코드 비교
+        if (!group.getInviteCode().equals(normalizedInviteCode)) {
+            throw new CustomException(ErrorCode.INVITE_CODE_MISMATCH);
+        }
 
         // 이미 가입한 그룹인지 확인
-        if (userGroupRepository.existsByUserIdAndGroupId(userId, group.getId())) {
+        if (userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_GROUP);
         }
 
         // 그룹 멤버 수 제한 체크
-        checkGroupMemberLimit(group.getId());
+        checkGroupMemberLimit(groupId);
+
+        // 그룹 내 사용자 프로필 이미지 업로드 처리
+        String userProfileImageUrl = null;
+        if (groupUserProfileImage != null && !groupUserProfileImage.isEmpty()) {
+            try {
+                userProfileImageUrl = fileUploadService.uploadFile(groupUserProfileImage, "profiles");
+            } catch (IOException e) {
+                log.error("그룹 내 사용자 프로필 이미지 업로드 실패: {}", e.getMessage());
+                throw new CustomException(ErrorCode.FILE_UPLOAD_ERROR);
+            }
+        }
 
         // 그룹 가입
         UserGroup userGroup = UserGroup.builder()
                 .user(user)
                 .group(group)
                 .groupUserNickname(requestDto.getGroupUserNickname())
-                .groupUserProfileImageUrl(requestDto.getGroupUserProfileImageUrl())
+                .groupUserProfileImageUrl(userProfileImageUrl)
                 .isOwner(false)
                 .build();
 
         userGroupRepository.save(userGroup);
 
         log.info("그룹 가입 완료: userId={}, groupId={}, groupName={}, inviteCode={}",
-                userId, group.getId(), group.getName(), normalizedInviteCode);
+                userId, groupId, group.getName(), normalizedInviteCode);
 
         return JoinGroupResponseDto.builder()
                 .groupId(group.getId())
@@ -206,7 +221,6 @@ public class GroupService {
         // 현재 멤버 수 조회
         int currentMemberCount = userGroupRepository.countByGroupId(groupId);
 
-        // 그룹 정보는 이미 UserGroup과 함께 가져왔으므로 별도 조회 불필요
         Group group = userGroup.getGroup();
 
         // 응답 생성
@@ -241,8 +255,7 @@ public class GroupService {
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
 
-        // 그룹 내 사용자 프로필 이미지 업로드 처리 (선택사항)
-        String groupUserProfileImageUrl = userGroup.getGroupUserProfileImageUrl(); // 기존 이미지 URL 유지
+        String groupUserProfileImageUrl = userGroup.getGroupUserProfileImageUrl();
         if (groupUserProfileImage != null && !groupUserProfileImage.isEmpty()) {
             try {
                 groupUserProfileImageUrl = fileUploadService.uploadFile(groupUserProfileImage, "profiles");

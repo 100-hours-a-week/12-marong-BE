@@ -66,6 +66,7 @@ public enum ErrorCode {
     INVITE_CODE_DUPLICATED(409, "초대코드가 이미 사용 중입니다. 다른 코드를 입력해주세요."),
     GROUP_NOT_FOUND(404, "해당 그룹을 찾을 수 없습니다."),
     INVALID_INVITE_CODE(400, "유효하지 않은 초대코드입니다."),
+    INVITE_CODE_MISMATCH(400, "초대코드가 일치하지 않습니다. 다시 확인해주세요."),
     INVALID_INVITE_CODE_FORMAT(400, "초대 코드는 영어와 숫자를 포함한 정확히 6자리여야 합니다."),
     INVITE_CODE_TOO_SHORT(400, "초대 코드가 너무 짧습니다. 6자리로 입력해주세요."),
     INVITE_CODE_TOO_LONG(400, "초대 코드가 너무 깁니다. 6자리로 입력해주세요."),
