@@ -37,24 +37,28 @@ public class ManittoService {
     private final ManittoRepository manittoRepository;
     private final PostRepository postRepository;
     private final AnonymousNameRepository anonymousNameRepository;
+    private final UserGroupRepository userGroupRepository;
 
     /**
-     * 현재 사용자의 마니또/마니띠 역할 및 정보 조회
-     * AI가 알려준 마니또 매칭 정보를 DB에서 조회
-     * MVP에서는 모든 사용자가 기본 그룹(ID: 1)에 속한다고 가정
+     * 현재 사용자의 마니또/마니띠 역할 및 정보 조회 (그룹 ID 파라미터 추가)
      */
     @Transactional(readOnly = true)
-    public ManittoInfoResponseDto getCurrentManittoInfo(Long userId) {
+    public ManittoInfoResponseDto getCurrentManittoInfo(Long userId, Long groupId) {
         // 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
+        }
 
         // 현재 주차에 해당하는 매칭 정보 조회
         int currentWeek = WeekCalculator.getCurrentWeek();
         String remainingTime = calculateRemainingTimeUntilReveal();
 
         // 1. 사용자가 마니또인지 확인 (manitto_id로 매칭된 레코드가 있는지 확인)
-        List<Manitto> isManittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        List<Manitto> isManittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
         if (!isManittoList.isEmpty()) {
             // 사용자가 마니또인 경우 - 담당하는 마니띠 정보 반환
@@ -69,7 +73,7 @@ public class ManittoService {
         }
 
         // 2. 사용자가 마니띠인지 확인 (manittee_id로 매칭된 레코드가 있는지 확인)
-        List<Manitto> isManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        List<Manitto> isManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
         if (!isManitteeList.isEmpty()) {
             // 사용자가 마니띠인 경우 - 담당 마니또의 익명 이름 반환
@@ -78,7 +82,7 @@ public class ManittoService {
 
             // 마니또의 익명 이름 조회
             String manittoAnonymousName = anonymousNameRepository
-                    .findAnonymousNameByUserIdAndWeek(manittoId, currentWeek)
+                    .findAnonymousNameByUserIdAndGroupIdAndWeek(manittoId, groupId, currentWeek)
                     .orElse("익명의 마니또"); // 기본값
 
             return ManittoInfoResponseDto.builder()
@@ -96,24 +100,36 @@ public class ManittoService {
     }
 
     /**
-     * 마니또 미션 상태 조회
-     * 미션 수행 여부는 게시글 작성 여부로 판단
+     * MVP 호환성을 위한 오버로드 메서드 (기본 그룹 ID 1 사용)
+     */
+    @Transactional(readOnly = true)
+    public ManittoInfoResponseDto getCurrentManittoInfo(Long userId) {
+        return getCurrentManittoInfo(userId, 1L);
+    }
+
+    /**
+     * 마니또 미션 상태 조회 (그룹 ID 파라미터 추가)
      */
     @Transactional
-    public MissionStatusResponseDto getMissionStatus(Long userId) {
+    public MissionStatusResponseDto getMissionStatus(Long userId, Long groupId) {
         // 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
+        }
 
         // 현재 주차 계산
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
         // 하루가 지난 미션을 미완료 상태로 처리 (현재 주차만)
-        handleExpiredMissions(userId, today, currentWeek);
+        handleExpiredMissions(userId, groupId, today, currentWeek);
 
         // 현재 주차에 해당하는 사용자 미션 조회
-        List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
         // 진행 중인 미션, 완료된 미션, 미완료 미션 구분
         List<UserMission> completedMissions = new ArrayList<>();
@@ -130,11 +146,11 @@ public class ManittoService {
                 // 오늘 할당된 미션만 inProgress에 유지
                 if (userMission.getAssignedDate().equals(today)) {
                     // 게시글 작성 여부로 상태 추가 판단
-                    int postCount = postRepository.countByUserIdAndMissionIdAndWeek(
-                            userId, userMission.getMission().getId(), currentWeek);
+                    int postCount = postRepository.countByUserIdAndMissionIdAndWeekAndGroupId(
+                            userId, userMission.getMission().getId(), currentWeek, groupId);
 
-                    log.info("미션 완료 확인: userId={}, missionId={}, week={}, postCount={}",
-                            userId, userMission.getMission().getId(), currentWeek, postCount);
+                    log.info("미션 완료 확인: userId={}, missionId={}, week={}, groupId={}, postCount={}",
+                            userId, userMission.getMission().getId(), currentWeek, groupId, postCount);
 
                     if (postCount > 0) {
                         // 게시글이 있으면 미션을 완료 상태로 업데이트하고 완료 목록에 추가
@@ -155,8 +171,7 @@ public class ManittoService {
 
         // 진행 중인 미션이 없고 전체 미션이 5개 미만이면 새 미션 할당이 필요하다는 로그만 남김
         if (inProgressMissions.isEmpty() && userMissions.size() < 5) {
-            log.info("새로운 미션 할당이 필요합니다. 사용자 ID: {}", userId);
-            // 여기서는 미션을 생성하지 않고, 필요하다는 정보만 로깅
+            log.info("새로운 미션 할당이 필요합니다. 사용자 ID: {}, 그룹 ID: {}", userId, groupId);
         }
 
         // DTO 변환
@@ -196,28 +211,40 @@ public class ManittoService {
     }
 
     /**
-     * 새 미션 할당 - 하루 1개 제한 추가
-     * 이전 날짜의 완료되지 않은 미션은 자동으로 '미완료' 상태로 변경
+     * MVP 호환성을 위한 오버로드 메서드 (기본 그룹 ID 1 사용)
      */
     @Transactional
-    public UserMission assignNewMission(Long userId) {
+    public MissionStatusResponseDto getMissionStatus(Long userId) {
+        return getMissionStatus(userId, 1L);
+    }
+
+    /**
+     * 새 미션 할당 (그룹 ID 파라미터 추가)
+     */
+    @Transactional
+    public UserMission assignNewMission(Long userId, Long groupId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
+        }
 
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
         // 현재 주차의 이전 미션들을 미완료 상태로 변경
-        handleExpiredMissions(userId, today, currentWeek);
+        handleExpiredMissions(userId, groupId, today, currentWeek);
 
         // 오늘 이미 할당된 미션이 있는지 확인 (상태와 관계없이)
-        List<UserMission> todaysMissions = userMissionRepository.findAllMissionsAssignedOnDate(userId, today, currentWeek);
+        List<UserMission> todaysMissions = userMissionRepository.findAllMissionsAssignedOnDate(userId, groupId, today, currentWeek);
         if (!todaysMissions.isEmpty()) {
             throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED, "하루에 한 개의 미션만 수행할 수 있습니다.");
         }
 
-        // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
-        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 현재 주차에 해당하는 마니또 매칭 정보 조회
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
         // 마니또 매칭 정보가 없는 경우 예외 발생
         if (manittoList.isEmpty()) {
@@ -225,7 +252,7 @@ public class ManittoService {
         }
 
         // 현재 주차의 모든 미션 조회 (중복 방지용)
-        List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
         // 할당 가능한 미션 찾기
         Mission mission = getAvailableMission(userMissions);
@@ -236,7 +263,7 @@ public class ManittoService {
         // 미션 생성 및 저장
         UserMission userMission = UserMission.builder()
                 .user(user)
-                .groupId(1L)
+                .groupId(groupId) // 파라미터로 받은 그룹 ID 사용
                 .mission(mission)
                 .week(currentWeek)
                 .assignedDate(today) // 오늘 날짜로 할당
@@ -246,21 +273,28 @@ public class ManittoService {
     }
 
     /**
-     * 이전 날짜의 완료되지 않은 미션을 처리하는 메서드
-     * 완료되지 않은 미션은 '미완료(incomplete)' 상태로 변경
+     * MVP 호환성을 위한 오버로드 메서드 (기본 그룹 ID 1 사용)
      */
-    private void handleExpiredMissions(Long userId, LocalDate today, Integer currentWeek) {
+    @Transactional
+    public UserMission assignNewMission(Long userId) {
+        return assignNewMission(userId, 1L);
+    }
+
+    /**
+     * 이전 날짜의 완료되지 않은 미션을 처리하는 메서드 (그룹 ID 파라미터 추가)
+     */
+    private void handleExpiredMissions(Long userId, Long groupId, LocalDate today, Integer currentWeek) {
         // 현재 주차의 이전 날짜에 할당된 미션 중 진행 중인 상태인 미션 조회
         List<UserMission> expiredMissions = userMissionRepository.findIncompleteMissionsBeforeDate(
-                userId, today, currentWeek);
+                userId, groupId, today, currentWeek);
 
         if (!expiredMissions.isEmpty()) {
             for (UserMission mission : expiredMissions) {
                 // 미완료 상태로 변경
                 mission.markAsIncomplete();
                 userMissionRepository.save(mission);
-                log.info("미완료 미션 처리: userId={}, missionId={}, assignedDate={}",
-                        userId, mission.getMission().getId(), mission.getAssignedDate());
+                log.info("미완료 미션 처리: userId={}, groupId={}, missionId={}, assignedDate={}",
+                        userId, groupId, mission.getMission().getId(), mission.getAssignedDate());
             }
         }
     }

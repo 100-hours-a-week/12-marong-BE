@@ -18,20 +18,36 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("SELECT p FROM Post p ORDER BY p.createdAt DESC")
     Page<Post> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
-    // 주차별 게시글 조회 메서드 추가
+    // 그룹별 게시글 조회 메서드
+    @Query("SELECT p FROM Post p WHERE p.groupId = :groupId ORDER BY p.createdAt DESC")
+    Page<Post> findAllByGroupIdOrderByCreatedAtDesc(@Param("groupId") Long groupId, Pageable pageable);
+
+    // 주차별 게시글 조회 메서드
     @Query("SELECT p FROM Post p WHERE p.week = :week ORDER BY p.createdAt DESC")
     Page<Post> findAllByWeekOrderByCreatedAtDesc(@Param("week") Integer week, Pageable pageable);
 
-    // 특정 사용자, 특정 미션에 대한 게시글 수 조회 (기존 메서드)
+    // 그룹별 + 주차별 게시글 조회 메서드
+    @Query("SELECT p FROM Post p WHERE p.groupId = :groupId AND p.week = :week ORDER BY p.createdAt DESC")
+    Page<Post> findAllByGroupIdAndWeekOrderByCreatedAtDesc(@Param("groupId") Long groupId, @Param("week") Integer week, Pageable pageable);
+
+    // 특정 사용자, 특정 미션에 대한 게시글 수 조회
     @Query("SELECT COUNT(p) FROM Post p WHERE p.user.id = :userId AND p.mission.id = :missionId")
     int countByUserIdAndMissionId(@Param("userId") Long userId, @Param("missionId") Long missionId);
 
-    // 특정 사용자, 특정 미션, 특정 주차에 대한 게시글 수 조회 (수정된 메서드)
+    // 특정 사용자, 특정 미션, 특정 주차에 대한 게시글 수 조회
     @Query("SELECT COUNT(p) FROM Post p WHERE p.user.id = :userId AND p.mission.id = :missionId AND p.week = :week")
     int countByUserIdAndMissionIdAndWeek(
             @Param("userId") Long userId,
             @Param("missionId") Long missionId,
             @Param("week") Integer week);
+
+    // 특정 사용자, 특정 미션, 특정 주차, 특정 그룹에 대한 게시글 수 조회
+    @Query("SELECT COUNT(p) FROM Post p WHERE p.user.id = :userId AND p.mission.id = :missionId AND p.week = :week AND p.groupId = :groupId")
+    int countByUserIdAndMissionIdAndWeekAndGroupId(
+            @Param("userId") Long userId,
+            @Param("missionId") Long missionId,
+            @Param("week") Integer week,
+            @Param("groupId") Long groupId);
 
     // 특정 날짜 범위의 게시글을 주차별로 업데이트하기 위한 메서드
     @Query("SELECT p FROM Post p WHERE p.createdAt BETWEEN :startDate AND :endDate")

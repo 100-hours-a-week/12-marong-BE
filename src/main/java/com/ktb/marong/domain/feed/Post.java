@@ -30,9 +30,8 @@ public class Post {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // MVP에서는 모든 사용자가 하나의 그룹에 속하므로 group_id 필드는 고정값 사용
     @Column(name = "group_id", nullable = false)
-    private Long groupId = 1L; // 기본 그룹 ID는 1로 고정
+    private Long groupId; // 그룹 ID를 파라미터로 받도록 수정
 
     // 주차 정보 필드 추가
     @Column(name = "week", nullable = false)
@@ -66,9 +65,10 @@ public class Post {
     private LocalDateTime deletedAt;
 
     @Builder
-    public Post(User user, Mission mission, Integer week, String anonymousSnapshotName,
+    public Post(User user, Long groupId, Mission mission, Integer week, String anonymousSnapshotName,
                 String manitteeName, String content, String imageUrl) {
         this.user = user;
+        this.groupId = groupId; // 파라미터로 받은 groupId 사용
         this.mission = mission;
         this.week = week;
         this.anonymousSnapshotName = anonymousSnapshotName;

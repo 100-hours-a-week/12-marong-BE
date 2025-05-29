@@ -27,23 +27,27 @@ public class FeedController {
     private final FeedService feedService;
 
     /**
-     * 게시글 업로드
+     * 게시글 업로드 (그룹 ID 파라미터 추가)
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFeed(
             @CurrentUser Long userId,
+            @RequestParam(required = false) Long groupId,
             @RequestParam("missionId") Long missionId,
             @RequestParam("content") String content,
             @RequestParam(value = "image", required = false) MultipartFile image) {
 
-        log.info("게시글 업로드 요청: userId={}, missionId={}", userId, missionId);
+        // groupId가 없으면 기본 그룹(1) 사용 (MVP 호환성)
+        Long targetGroupId = (groupId != null) ? groupId : 1L;
+
+        log.info("게시글 업로드 요청: userId={}, groupId={}, missionId={}", userId, targetGroupId, missionId);
 
         PostRequestDto requestDto = new PostRequestDto(missionId, content);
-        Long feedId = feedService.savePost(userId, requestDto, image);
+        Long feedId = feedService.savePost(userId, targetGroupId, requestDto, image);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        Map.of("feedId", feedId),
+                        Map.of("feedId", feedId, "groupId", targetGroupId),
                         "feed_uploaded",
                         null
                 ));
@@ -72,17 +76,18 @@ public class FeedController {
     }
 
     /**
-     * 게시글 목록 조회 (MVP에서는 그룹 필터링 없음)
+     * 게시글 목록 조회 (그룹 ID 파라미터 추가)
      */
     @GetMapping
     public ResponseEntity<?> getFeeds(
             @CurrentUser Long userId,
+            @RequestParam(required = false) Long groupId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
 
-        log.info("피드 조회 요청: userId={}, page={}, pageSize={}", userId, page, pageSize);
+        log.info("피드 조회 요청: userId={}, groupId={}, page={}, pageSize={}", userId, groupId, page, pageSize);
 
-        PostPageResponseDto response = feedService.getPosts(userId, page, pageSize);
+        PostPageResponseDto response = feedService.getPosts(userId, groupId, page, pageSize);
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,

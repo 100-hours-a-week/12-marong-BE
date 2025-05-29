@@ -43,16 +43,22 @@ public class FeedService {
     private final AnonymousNameRepository anonymousNameRepository;
     private final UserMissionRepository userMissionRepository;
     private final ManittoRepository manittoRepository;
+    private final UserGroupRepository userGroupRepository;
     private final FileUploadService fileUploadService;
 
     /**
-     * 게시글 업로드 - 주차 정보 추가
+     * 게시글 업로드 (그룹 ID 파라미터 추가)
      */
     @Transactional
-    public Long savePost(Long userId, PostRequestDto requestDto, MultipartFile image) {
+    public Long savePost(Long userId, Long groupId, PostRequestDto requestDto, MultipartFile image) {
         // 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
+        }
 
         // 미션 조회
         Mission mission = missionRepository.findById(requestDto.getMissionId())
@@ -61,8 +67,9 @@ public class FeedService {
         // 현재 주차 계산
         int currentWeek = WeekCalculator.getCurrentWeek();
 
-        // 미션이 현재 사용자에게 할당된 것인지 확인
-        UserMission userMission = userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, requestDto.getMissionId(), currentWeek)
+        // 미션이 현재 사용자에게 할당된 것인지 확인 (그룹 ID 포함)
+        UserMission userMission = userMissionRepository.findByUserIdAndGroupIdAndMissionIdAndWeek(
+                        userId, groupId, requestDto.getMissionId(), currentWeek)
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_ASSIGNED, "할당되지 않은 미션입니다."));
 
         // 미션 상태가 진행 중인지 확인
@@ -70,17 +77,18 @@ public class FeedService {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이미 완료된 미션입니다.");
         }
 
-        // 해당 미션을 현재 주차에 이미 수행했는지 확인 - week 포함하여 체크
-        int postCount = postRepository.countByUserIdAndMissionIdAndWeek(userId, requestDto.getMissionId(), currentWeek);
-        log.info("미션 수행 확인: userId={}, missionId={}, week={}, postCount={}",
-                userId, requestDto.getMissionId(), currentWeek, postCount);
+        // 해당 미션을 현재 주차에 이미 수행했는지 확인 - 그룹 ID 포함하여 체크
+        int postCount = postRepository.countByUserIdAndMissionIdAndWeekAndGroupId(
+                userId, requestDto.getMissionId(), currentWeek, groupId);
+        log.info("미션 수행 확인: userId={}, missionId={}, week={}, groupId={}, postCount={}",
+                userId, requestDto.getMissionId(), currentWeek, groupId, postCount);
 
         if (postCount > 0) {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이번 주차에 이미 해당 미션을 완료했습니다.");
         }
 
-        // 현재 사용자의 마니띠 정보 조회
-        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        // 현재 사용자의 마니띠 정보 조회 (그룹 ID 포함)
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND);
         }
@@ -88,8 +96,9 @@ public class FeedService {
         Manitto manitto = manittoList.get(0);
         String manitteeName = manitto.getManittee().getNickname(); // 마니띠(대상자)의 이름
 
-        // 익명 이름 조회 - 현재 주차 정보 추가
-        String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndWeek(userId, currentWeek)
+        // 익명 이름 조회 - 현재 주차 및 그룹 정보 추가
+        String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndGroupIdAndWeek(
+                        userId, groupId, currentWeek)
                 .orElse("익명의 " + getRandomAnimal()); // 없으면 기본 이름 생성
 
         // 이미지 업로드 처리
@@ -103,9 +112,10 @@ public class FeedService {
             }
         }
 
-        // 게시글 생성 - 주차 정보 포함
+        // 게시글 생성 - 그룹 ID 및 주차 정보 포함
         Post post = Post.builder()
                 .user(user)
+                .groupId(groupId) // 파라미터로 받은 그룹 ID 사용
                 .mission(mission)
                 .week(currentWeek) // 주차 정보 추가
                 .anonymousSnapshotName(anonymousName)
@@ -118,9 +128,17 @@ public class FeedService {
         Post savedPost = postRepository.save(post);
 
         // 미션 완료 상태 업데이트 (UserMission 테이블)
-        updateMissionStatus(userId, mission.getId(), currentWeek);
+        updateMissionStatus(userId, groupId, mission.getId(), currentWeek);
 
         return savedPost.getId();
+    }
+
+    /**
+     * MVP 호환성을 위한 오버로드 메서드 (기본 그룹 ID 1 사용)
+     */
+    @Transactional
+    public Long savePost(Long userId, PostRequestDto requestDto, MultipartFile image) {
+        return savePost(userId, 1L, requestDto, image);
     }
 
     // 익명 이름 기본값 반환을 위한 랜덤 동물 이름 생성 메소드 추가
@@ -173,15 +191,20 @@ public class FeedService {
     }
 
     /**
-     * 게시글 목록 조회 (MVP에서는 그룹 필터링 없이 모든 게시글 최신순으로 조회)
-     * 현재 사용자의 좋아요 여부를 함께 반환
+     * 게시글 목록 조회 (그룹 ID 파라미터 추가)
      */
     @Transactional(readOnly = true)
-    public PostPageResponseDto getPosts(Long userId, int page, int pageSize) {
+    public PostPageResponseDto getPosts(Long userId, Long groupId, int page, int pageSize) {
         Pageable pageable = PageRequest.of(page - 1, pageSize);
 
-        // 주차 필터링 없이 모든 게시글을 최신순으로 조회
-        Page<Post> postPage = postRepository.findAllByOrderByCreatedAtDesc(pageable);
+        Page<Post> postPage;
+        if (groupId != null) {
+            // 특정 그룹의 게시글만 조회
+            postPage = postRepository.findAllByGroupIdOrderByCreatedAtDesc(groupId, pageable);
+        } else {
+            // 모든 게시글 조회 (MVP 호환성)
+            postPage = postRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
 
         List<PostResponseDto> postDtos = postPage.getContent().stream()
                 .map(post -> {
@@ -202,15 +225,24 @@ public class FeedService {
     }
 
     /**
-     * 미션 완료 상태 업데이트 - 주차 정보 포함
+     * MVP 호환성을 위한 오버로드 메서드 (그룹 필터링 없음)
      */
-    private void updateMissionStatus(Long userId, Long missionId, Integer week) {
+    @Transactional(readOnly = true)
+    public PostPageResponseDto getPosts(Long userId, int page, int pageSize) {
+        return getPosts(userId, null, page, pageSize);
+    }
+
+    /**
+     * 미션 완료 상태 업데이트 (그룹 ID 파라미터 추가)
+     */
+    private void updateMissionStatus(Long userId, Long groupId, Long missionId, Integer week) {
         // UserMission 테이블에서 미션 상태를 'completed'로 업데이트
-        userMissionRepository.findByUserIdAndMissionIdAndWeek(userId, missionId, week)
+        userMissionRepository.findByUserIdAndGroupIdAndMissionIdAndWeek(userId, groupId, missionId, week)
                 .ifPresent(userMission -> {
                     userMission.complete();
                     userMissionRepository.save(userMission);
-                    log.info("미션 완료 상태 업데이트: userId={}, missionId={}, week={}", userId, missionId, week);
+                    log.info("미션 완료 상태 업데이트: userId={}, groupId={}, missionId={}, week={}",
+                            userId, groupId, missionId, week);
                 });
     }
 
@@ -232,6 +264,7 @@ public class FeedService {
                 // 엔티티를 직접 수정할 수 없으므로 새 엔티티 생성 후 저장
                 Post updatedPost = Post.builder()
                         .user(post.getUser())
+                        .groupId(post.getGroupId()) // 기존 groupId 유지
                         .mission(post.getMission())
                         .week(week)
                         .anonymousSnapshotName(post.getAnonymousSnapshotName())
@@ -246,7 +279,8 @@ public class FeedService {
                 // 저장
                 postRepository.save(updatedPost);
 
-                log.info("게시글 주차 정보 마이그레이션: postId={}, week={}", post.getId(), week);
+                log.info("게시글 주차 정보 마이그레이션: postId={}, week={}, groupId={}",
+                        post.getId(), week, post.getGroupId());
             }
         }
     }
