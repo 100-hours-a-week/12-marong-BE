@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 사용자 응답 DTO
+ * 사용자 응답 DTO (단순화된 버전)
  */
 @Getter
 @Builder
@@ -17,7 +17,6 @@ public class UserResponseDto {
     private Long userId;
     private String kakaoName;
     private String profileImage;
-    private String nickname;
     private boolean hasCompletedSurvey;
     private boolean hasGroupNickname; // 추가: 그룹 내 닉네임 설정 여부
 
@@ -29,7 +28,6 @@ public class UserResponseDto {
                 .userId(user.getId())
                 .kakaoName(user.getNickname())
                 .profileImage(user.getProfileImageUrl())
-                .nickname(user.getNickname())
                 .hasCompletedSurvey(user.getHasCompletedSurvey())
                 .hasGroupNickname(hasGroupNickname)
                 .build();
