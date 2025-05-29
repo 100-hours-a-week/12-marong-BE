@@ -9,6 +9,7 @@ import com.ktb.marong.dto.response.auth.UserResponseDto;
 import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.UserRepository;
+import com.ktb.marong.service.group.GroupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 인증 서비스
- * 로그인, 로그아웃, 토큰 갱신 등의 인증 관련 기능을 제공하는 서비스입니다.
+ * 로그인, 로그아웃, 토큰 갱신 등의 인증 관련 기능을 제공하는 서비스
  */
 @Slf4j
 @Service
@@ -26,6 +27,7 @@ public class AuthService {
     private final KakaoOAuthService kakaoOAuthService;
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final GroupService groupService;
 
     /**
      * OAuth 리디렉션 URL 생성
@@ -63,12 +65,21 @@ public class AuthService {
             String jwt = jwtService.createAccessToken(user);
             String refreshToken = jwtService.createRefreshToken(user);
 
-            // 로그인 응답 생성
+            // 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인 (기존 사용자용)
+            boolean hasGroupNickname = groupService.hasDefaultGroupNickname(user.getId());
+
+            // isNewUser 판단 로직: 오직 hasCompletedSurvey로만 판단
+            boolean isNewUser = !user.getHasCompletedSurvey();
+
+            log.info("로그인 사용자 상태: userId={}, hasCompletedSurvey={}, hasGroupNickname={}, isNewUser={}",
+                    user.getId(), user.getHasCompletedSurvey(), hasGroupNickname, isNewUser);
+
+            // 로그인 응답 생성 (hasGroupNickname 정보 포함)
             return LoginResponseDto.builder()
                     .jwt(jwt)
                     .refreshToken(refreshToken)
-                    .isNewUser(!user.getHasCompletedSurvey())
-                    .user(UserResponseDto.fromEntity(user))
+                    .isNewUser(isNewUser)
+                    .user(UserResponseDto.fromEntity(user, hasGroupNickname))
                     .build();
         } catch (Exception e) {
             log.error("소셜 로그인 처리 중 오류 발생", e);
@@ -128,6 +139,9 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        return UserResponseDto.fromEntity(user);
+        // 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인
+        boolean hasGroupNickname = groupService.hasDefaultGroupNickname(userId);
+
+        return UserResponseDto.fromEntity(user, hasGroupNickname);
     }
 }

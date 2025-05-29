@@ -72,7 +72,13 @@ public enum ErrorCode {
     INVITE_CODE_TOO_LONG(400, "초대 코드가 너무 깁니다. 6자리로 입력해주세요."),
     INVITE_CODE_INVALID_CHARACTERS(400, "초대 코드는 영어와 숫자만 사용할 수 있습니다."),
     ALREADY_JOINED_GROUP(409, "이미 가입된 그룹입니다."),
-    GROUP_NICKNAME_REQUIRED(400, "그룹 내 사용자 닉네임 설정이 필요합니다.");
+    GROUP_NICKNAME_REQUIRED(400, "그룹 내 사용자 닉네임 설정이 필요합니다."),
+
+    // 닉네임 관련 에러 (새로 추가)
+    NICKNAME_TOO_SHORT(400, "닉네임이 너무 짧습니다."),
+    NICKNAME_TOO_LONG(400, "닉네임이 너무 깁니다."),
+    INVALID_NICKNAME_FORMAT(400, "유효하지 않은 닉네임 형식입니다."),
+    NICKNAME_DUPLICATED_IN_GROUP(409, "해당 그룹에서 이미 사용 중인 닉네임입니다.");
 
     private final int status;
     private final String message;
