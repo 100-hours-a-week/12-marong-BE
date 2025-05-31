@@ -56,6 +56,9 @@ public enum ErrorCode {
     MANITTO_NOT_FOUND(404, "현재 매칭된 마니띠가 없습니다."),
     MISSION_STATUS_NOT_FOUND(404, "진행 중인 미션이 없습니다."),
 
+    // 신규 사용자 관련 에러
+    NEW_USER_NO_MANITTO_MATCHING(404, "아직 마니또 매칭이 이루어지지 않았습니다. 다음 매칭까지 기다려주세요."),
+
     // 추천 관련 에러
     RECOMMENDATION_NOT_FOUND(404, "추천 정보를 찾을 수 없습니다."),
 
