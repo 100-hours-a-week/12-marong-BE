@@ -44,6 +44,7 @@ public class ManittoService {
 
     /**
      * 현재 사용자의 마니또-마니띠 상세 정보 조회 (그룹별, 시간대별)
+     * 신규 사용자 처리 포함
      */
     @Transactional(readOnly = true)
     public ManittoDetailResponseDto getCurrentManittoDetail(Long userId, Long groupId) {
@@ -61,58 +62,77 @@ public class ManittoService {
 
         // 3. 현재 주차 및 시간 정보
         int currentWeek = WeekCalculator.getCurrentWeek();
-        String remainingTime = calculateRemainingTimeUntilReveal(); // 기존 메서드 사용
+        String remainingTime = calculateRemainingTimeUntilReveal();
         String currentPeriod = getCurrentPeriod();
+        boolean isNewUser = isNewUser(userId, groupId, currentWeek);
 
-        log.info("현재 시간 정보: currentWeek={}, period={}, remainingTime={}",
-                currentWeek, currentPeriod, remainingTime);
+        log.info("현재 시간 정보: currentWeek={}, period={}, remainingTime={}, isNewUser={}",
+                currentWeek, currentPeriod, remainingTime, isNewUser);
 
         // 4. 시간대에 따른 분기 처리
         if ("MANITTO_REVEAL".equals(currentPeriod)) {
             // 마니또 공개 기간 (금요일 17시 ~ 월요일 12시)
-            return buildRevealPeriodResponse(userId, groupId, group, currentWeek, remainingTime);
+            return buildRevealPeriodResponse(userId, groupId, group, currentWeek, remainingTime, isNewUser);
         } else {
             // 일반 활동 기간 (월요일 12시 ~ 금요일 17시)
-            return buildActivePeriodResponse(userId, groupId, group, currentWeek, remainingTime);
+            return buildActivePeriodResponse(userId, groupId, group, currentWeek, remainingTime, isNewUser);
         }
     }
 
     /**
+     * 신규 사용자 여부 판단 (마니또 매칭 정보가 있는지 확인)
+     */
+    private boolean isNewUser(Long userId, Long groupId, int currentWeek) {
+        // 현재 주차에 마니또 또는 마니띠로 매칭된 정보가 있는지 확인
+        List<Manitto> asManitto = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+        List<Manitto> asManittee = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+
+        boolean hasMatching = !asManitto.isEmpty() || !asManittee.isEmpty();
+
+        log.info("신규 사용자 판단: userId={}, groupId={}, week={}, hasMatching={}",
+                userId, groupId, currentWeek, hasMatching);
+
+        return !hasMatching; // 매칭 정보가 없으면 신규 사용자
+    }
+
+    /**
      * 마니또 공개 기간 응답 생성 (금요일 17시 ~ 월요일 12시) -> MANITTO_REVEAL
+     * 신규 사용자 처리 포함
      */
     private ManittoDetailResponseDto buildRevealPeriodResponse(Long userId, Long groupId, Group group,
-                                                               int currentWeek, String remainingTime) {
-        log.info("마니또 공개 기간 응답 생성: userId={}, groupId={}, week={}", userId, groupId, currentWeek);
-
-        // 나를 담당했던 마니또 정보 조회 (이번 주기)
-        List<Manitto> manitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+                                                               int currentWeek, String remainingTime, boolean isNewUser) {
+        log.info("마니또 공개 기간 응답 생성: userId={}, groupId={}, week={}, isNewUser={}", userId, groupId, currentWeek, isNewUser);
 
         ManittoDetailResponseDto.RevealedManittoDto revealedManitto = null;
 
-        if (!manitteeList.isEmpty()) {
-            Manitto manittoRelation = manitteeList.get(0);
-            User manittoUser = manittoRelation.getManitto();
+        if (!isNewUser) {
+            // 기존 사용자인 경우만 마니또 정보 조회
+            List<Manitto> manitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
-            // 마니또의 그룹 내 정보 조회
-            UserGroup manittoUserGroup = userGroupRepository.findByUserIdAndGroupId(manittoUser.getId(), groupId)
-                    .orElse(null);
+            if (!manitteeList.isEmpty()) {
+                Manitto manittoRelation = manitteeList.get(0);
+                User manittoUser = manittoRelation.getManitto();
 
-            // 마니또의 이번 주기 익명 이름 조회
-            String manittoAnonymousName = anonymousNameRepository
-                    .findAnonymousNameByUserIdAndGroupIdAndWeek(manittoUser.getId(), groupId, currentWeek)
-                    .orElse("익명의 마니또");
+                // 마니또의 그룹 내 정보 조회
+                UserGroup manittoUserGroup = userGroupRepository.findByUserIdAndGroupId(manittoUser.getId(), groupId)
+                        .orElse(null);
 
-            revealedManitto = ManittoDetailResponseDto.RevealedManittoDto.builder()
-                    .name(manittoUser.getNickname()) // 카카오 실명
-                    .groupNickname(manittoUserGroup != null ? manittoUserGroup.getGroupUserNickname() : null)
-                    .groupProfileImage(manittoUserGroup != null ? manittoUserGroup.getGroupUserProfileImageUrl() : null)
-                    .anonymousName(manittoAnonymousName)
-                    .build();
+                // 마니또의 이번 주기 익명 이름 조회
+                String manittoAnonymousName = anonymousNameRepository
+                        .findAnonymousNameByUserIdAndGroupIdAndWeek(manittoUser.getId(), groupId, currentWeek)
+                        .orElse("익명의 마니또");
 
-            log.info("공개된 마니또 정보: manittoUserId={}, name={}, groupNickname={}, anonymousName={}",
-                    manittoUser.getId(), manittoUser.getNickname(),
-                    manittoUserGroup != null ? manittoUserGroup.getGroupUserNickname() : "없음",
-                    manittoAnonymousName);
+                revealedManitto = ManittoDetailResponseDto.RevealedManittoDto.builder()
+                        .name(manittoUser.getNickname()) // 카카오 실명
+                        .groupNickname(manittoUserGroup != null ? manittoUserGroup.getGroupUserNickname() : null)
+                        .groupProfileImage(manittoUserGroup != null ? manittoUserGroup.getGroupUserProfileImageUrl() : null)
+                        .anonymousName(manittoAnonymousName)
+                        .build();
+
+                log.info("공개된 마니또 정보: manittoUserId={}, name={}", manittoUser.getId(), manittoUser.getNickname());
+            }
+        } else {
+            log.info("신규 사용자 - 공개할 마니또 정보 없음: userId={}, groupId={}, week={}", userId, groupId, currentWeek);
         }
 
         return ManittoDetailResponseDto.builder()
@@ -120,94 +140,99 @@ public class ManittoService {
                 .remainingTime(remainingTime)
                 .groupId(groupId)
                 .groupName(group.getName())
+                .isNewUser(isNewUser)
                 .revealedManitto(revealedManitto)
+                // 마니또 공개 기간에는 다른 필드들을 설정하지 않음 (null로 유지)
                 .build();
     }
 
     /**
      * 일반 활동 기간 응답 생성 (월요일 12시 ~ 금요일 17시) -> MANITTO_ACTIVE
+     * 신규 사용자 처리 포함
      */
     private ManittoDetailResponseDto buildActivePeriodResponse(Long userId, Long groupId, Group group,
-                                                               int currentWeek, String remainingTime) {
-        log.info("일반 활동 기간 응답 생성: userId={}, groupId={}, week={}", userId, groupId, currentWeek);
+                                                               int currentWeek, String remainingTime, boolean isNewUser) {
+        log.info("일반 활동 기간 응답 생성: userId={}, groupId={}, week={}, isNewUser={}", userId, groupId, currentWeek, isNewUser);
 
-        // 이전 주기 마니또 정보 (새로운 주기 첫 주에만 표시)
         ManittoDetailResponseDto.PreviousCycleManittoDto previousCycleManitto = null;
-        int previousWeek = currentWeek - 1;
+        ManittoDetailResponseDto.CurrentManittoDto currentManitto = null;
+        ManittoDetailResponseDto.CurrentManitteeDto currentManittee = null;
 
-        if (previousWeek > 0) { // 1주차가 아닌 경우에만 이전 주기 정보 조회
-            List<Manitto> previousManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, previousWeek);
+        if (!isNewUser) {
+            // 기존 사용자인 경우만 마니또 정보들 조회
 
-            if (!previousManitteeList.isEmpty()) {
-                Manitto previousManittoRelation = previousManitteeList.get(0);
-                User previousManittoUser = previousManittoRelation.getManitto();
+            // 이전 주기 마니또 정보
+            int previousWeek = currentWeek - 1;
+            if (previousWeek > 0) {
+                List<Manitto> previousManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, previousWeek);
 
-                // 이전 마니또의 그룹 내 정보 조회
-                UserGroup previousManittoUserGroup = userGroupRepository.findByUserIdAndGroupId(previousManittoUser.getId(), groupId)
-                        .orElse(null);
+                if (!previousManitteeList.isEmpty()) {
+                    Manitto previousManittoRelation = previousManitteeList.get(0);
+                    User previousManittoUser = previousManittoRelation.getManitto();
 
-                // 이전 마니또의 익명 이름 조회
-                String previousManittoAnonymousName = anonymousNameRepository
-                        .findAnonymousNameByUserIdAndGroupIdAndWeek(previousManittoUser.getId(), groupId, previousWeek)
+                    UserGroup previousManittoUserGroup = userGroupRepository.findByUserIdAndGroupId(previousManittoUser.getId(), groupId)
+                            .orElse(null);
+
+                    String previousManittoAnonymousName = anonymousNameRepository
+                            .findAnonymousNameByUserIdAndGroupIdAndWeek(previousManittoUser.getId(), groupId, previousWeek)
+                            .orElse("익명의 마니또");
+
+                    previousCycleManitto = ManittoDetailResponseDto.PreviousCycleManittoDto.builder()
+                            .name(previousManittoUser.getNickname())
+                            .groupNickname(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserNickname() : null)
+                            .groupProfileImage(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserProfileImageUrl() : null)
+                            .anonymousName(previousManittoAnonymousName)
+                            .build();
+
+                    log.info("이전 주기 마니또 정보: userId={}, name={}, anonymousName={}",
+                            previousManittoUser.getId(), previousManittoUser.getNickname(), previousManittoAnonymousName);
+                }
+            }
+
+            // 현재 나를 담당하는 마니또 정보
+            List<Manitto> currentManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+
+            if (!currentManitteeList.isEmpty()) {
+                Manitto currentManittoRelation = currentManitteeList.get(0);
+                User currentManittoUser = currentManittoRelation.getManitto();
+
+                String currentManittoAnonymousName = anonymousNameRepository
+                        .findAnonymousNameByUserIdAndGroupIdAndWeek(currentManittoUser.getId(), groupId, currentWeek)
                         .orElse("익명의 마니또");
 
-                previousCycleManitto = ManittoDetailResponseDto.PreviousCycleManittoDto.builder()
-                        .name(previousManittoUser.getNickname())
-                        .groupNickname(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserNickname() : null)
-                        .groupProfileImage(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserProfileImageUrl() : null)
-                        .anonymousName(previousManittoAnonymousName)
+                currentManitto = ManittoDetailResponseDto.CurrentManittoDto.builder()
+                        .anonymousName(currentManittoAnonymousName)
                         .build();
 
-                log.info("이전 주기 마니또 정보: userId={}, name={}, anonymousName={}",
-                        previousManittoUser.getId(), previousManittoUser.getNickname(), previousManittoAnonymousName);
+                log.info("현재 마니또 정보: manittoUserId={}, anonymousName={}",
+                        currentManittoUser.getId(), currentManittoAnonymousName);
             }
-        }
 
-        // 현재 나를 담당하는 마니또 정보 (익명)
-        ManittoDetailResponseDto.CurrentManittoDto currentManitto = null;
-        List<Manitto> currentManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+            // 현재 내가 담당하는 마니띠 정보
+            List<Manitto> currentManittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
-        if (!currentManitteeList.isEmpty()) {
-            Manitto currentManittoRelation = currentManitteeList.get(0);
-            User currentManittoUser = currentManittoRelation.getManitto();
+            if (!currentManittoList.isEmpty()) {
+                Manitto currentManitteeRelation = currentManittoList.get(0);
+                User currentManitteeUser = currentManitteeRelation.getManittee();
 
-            String currentManittoAnonymousName = anonymousNameRepository
-                    .findAnonymousNameByUserIdAndGroupIdAndWeek(currentManittoUser.getId(), groupId, currentWeek)
-                    .orElse("익명의 마니또");
+                UserGroup manitteeUserGroup = userGroupRepository.findByUserIdAndGroupId(currentManitteeUser.getId(), groupId)
+                        .orElse(null);
 
-            currentManitto = ManittoDetailResponseDto.CurrentManittoDto.builder()
-                    .anonymousName(currentManittoAnonymousName)
-                    .build();
+                String displayName = (manitteeUserGroup != null && manitteeUserGroup.getGroupUserNickname() != null)
+                        ? manitteeUserGroup.getGroupUserNickname()
+                        : currentManitteeUser.getNickname();
 
-            log.info("현재 마니또 정보: manittoUserId={}, anonymousName={}",
-                    currentManittoUser.getId(), currentManittoAnonymousName);
-        }
+                currentManittee = ManittoDetailResponseDto.CurrentManitteeDto.builder()
+                        .name(currentManitteeUser.getNickname())
+                        .groupNickname(displayName)
+                        .groupProfileImage(manitteeUserGroup != null ? manitteeUserGroup.getGroupUserProfileImageUrl() : null)
+                        .build();
 
-        // 현재 내가 담당하는 마니띠 정보
-        ManittoDetailResponseDto.CurrentManitteeDto currentManittee = null;
-        List<Manitto> currentManittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
-
-        if (!currentManittoList.isEmpty()) {
-            Manitto currentManitteeRelation = currentManittoList.get(0);
-            User currentManitteeUser = currentManitteeRelation.getManittee();
-
-            // 마니띠의 그룹 내 정보 조회
-            UserGroup manitteeUserGroup = userGroupRepository.findByUserIdAndGroupId(currentManitteeUser.getId(), groupId)
-                    .orElse(null);
-
-            // 그룹 닉네임이 없으면 카카오 이름 사용
-            String displayName = (manitteeUserGroup != null && manitteeUserGroup.getGroupUserNickname() != null)
-                    ? manitteeUserGroup.getGroupUserNickname()
-                    : currentManitteeUser.getNickname();
-
-            currentManittee = ManittoDetailResponseDto.CurrentManitteeDto.builder()
-                    .name(currentManitteeUser.getNickname()) // 카카오 실명
-                    .groupNickname(displayName) // 그룹 닉네임 우선, 없으면 카카오 이름
-                    .groupProfileImage(manitteeUserGroup != null ? manitteeUserGroup.getGroupUserProfileImageUrl() : null)
-                    .build();
-
-            log.info("현재 마니띠 정보: manitteeUserId={}, name={}, groupNickname={}",
-                    currentManitteeUser.getId(), currentManitteeUser.getNickname(), displayName);
+                log.info("현재 마니띠 정보: manitteeUserId={}, name={}, groupNickname={}",
+                        currentManitteeUser.getId(), currentManitteeUser.getNickname(), displayName);
+            }
+        } else {
+            log.info("신규 사용자 - 모든 마니또 정보가 null로 설정됨: userId={}, groupId={}", userId, groupId);
         }
 
         return ManittoDetailResponseDto.builder()
@@ -215,9 +240,11 @@ public class ManittoService {
                 .remainingTime(remainingTime)
                 .groupId(groupId)
                 .groupName(group.getName())
+                .isNewUser(isNewUser)
                 .previousCycleManitto(previousCycleManitto)
                 .currentManitto(currentManitto)
                 .currentManittee(currentManittee)
+                // 일반 활동 기간에는 revealedManitto를 설정하지 않음 (null로 유지)
                 .build();
     }
 

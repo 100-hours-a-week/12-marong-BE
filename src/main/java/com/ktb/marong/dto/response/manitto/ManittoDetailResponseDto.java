@@ -1,5 +1,8 @@
 package com.ktb.marong.dto.response.manitto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,16 +15,30 @@ import lombok.NoArgsConstructor;
 public class ManittoDetailResponseDto {
 
     private String period; // "MANITTO_REVEAL" 또는 "MANITTO_ACTIVE"
-    private String remainingTime; // 다음 전환까지 남은 시간 (HH:MM:SS)
+    private String remainingTime; // 다음 마니또 매칭까지 남은 시간 (HH:MM:SS)
     private Long groupId;
     private String groupName;
+    @JsonIgnore
+    private boolean isNewUser; // 신규 사용자 여부 플래그
+
+    // 명시적인 getter 메소드로 JSON 직렬화 제어
+    @JsonProperty("isNewUser")
+    public boolean getIsNewUser() {
+        return isNewUser;
+    }
 
     // 마니또 공개 기간일 때 (금요일 17시 ~ 월요일 12시)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private RevealedManittoDto revealedManitto;
 
     // 일반 활동 기간일 때 (월요일 12시 ~ 금요일 17시)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private PreviousCycleManittoDto previousCycleManitto;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private CurrentManittoDto currentManitto;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private CurrentManitteeDto currentManittee;
 
     @Getter
