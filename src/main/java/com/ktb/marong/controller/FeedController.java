@@ -27,27 +27,24 @@ public class FeedController {
     private final FeedService feedService;
 
     /**
-     * 게시글 업로드 (그룹 ID 파라미터 추가)
+     * 게시글 업로드 (그룹별 분리)
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFeed(
             @CurrentUser Long userId,
-            @RequestParam(required = false) Long groupId,
+            @RequestParam("groupId") Long groupId,
             @RequestParam("missionId") Long missionId,
             @RequestParam("content") String content,
             @RequestParam(value = "image", required = false) MultipartFile image) {
 
-        // groupId가 없으면 기본 그룹(1) 사용 (MVP 호환성)
-        Long targetGroupId = (groupId != null) ? groupId : 1L;
-
-        log.info("게시글 업로드 요청: userId={}, groupId={}, missionId={}", userId, targetGroupId, missionId);
+        log.info("게시글 업로드 요청: userId={}, groupId={}, missionId={}", userId, groupId, missionId);
 
         PostRequestDto requestDto = new PostRequestDto(missionId, content);
-        Long feedId = feedService.savePost(userId, targetGroupId, requestDto, image);
+        Long feedId = feedService.savePost(userId, groupId, requestDto, image);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        Map.of("feedId", feedId, "groupId", targetGroupId),
+                        Map.of("feedId", feedId, "groupId", groupId),
                         "feed_uploaded",
                         null
                 ));
@@ -76,12 +73,12 @@ public class FeedController {
     }
 
     /**
-     * 게시글 목록 조회 (그룹 ID 파라미터 추가)
+     * 게시글 목록 조회 (그룹별 분리)
      */
     @GetMapping
     public ResponseEntity<?> getFeeds(
             @CurrentUser Long userId,
-            @RequestParam(required = false) Long groupId,
+            @RequestParam("groupId") Long groupId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
 
@@ -92,6 +89,41 @@ public class FeedController {
         return ResponseEntity.ok(ApiResponse.success(
                 response,
                 "feeds_retrieved",
+                Map.of("selectedGroupId", groupId) // 현재 선택된 그룹 정보 포함
+        ));
+    }
+
+    /**
+     * 사용자의 기본으로 선택될 그룹 ID 조회 (가장 최근 가입한 그룹) -> 로그인 후 처음 로딩될 그룹의 피드
+     */
+    @GetMapping("/default-group")
+    public ResponseEntity<?> getDefaultGroup(@CurrentUser Long userId) {
+        log.info("기본 그룹 조회 요청: userId={}", userId);
+
+        Long defaultGroupId = feedService.getDefaultGroupId(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                Map.of("defaultGroupId", defaultGroupId),
+                "default_group_retrieved",
+                null
+        ));
+    }
+
+    /**
+     * 그룹별 게시글 통계 정보 조회
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<?> getFeedStats(
+            @CurrentUser Long userId,
+            @RequestParam("groupId") Long groupId) {
+
+        log.info("피드 통계 조회 요청: userId={}, groupId={}", userId, groupId);
+
+        Map<String, Object> stats = feedService.getFeedStats(userId, groupId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                stats,
+                "feed_stats_retrieved",
                 null
         ));
     }

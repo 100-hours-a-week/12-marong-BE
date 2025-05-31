@@ -182,7 +182,7 @@ public class GroupService {
     }
 
     /**
-     * 내가 속한 그룹 목록 조회
+     * 내가 속한 그룹 목록 조회 (최근 가입 순으로 정렬)
      */
     @Transactional(readOnly = true)
     public List<GroupResponseDto> getMyGroups(Long userId) {
@@ -190,7 +190,9 @@ public class GroupService {
 
         List<UserGroup> userGroups = userGroupRepository.findByUserIdWithGroup(userId);
 
+        // 최근 가입 순으로 정렬 (joinedAt 기준 내림차순)
         return userGroups.stream()
+                .sorted((g1, g2) -> g2.getJoinedAt().compareTo(g1.getJoinedAt()))
                 .map(userGroup -> {
                     int memberCount = userGroupRepository.countByGroupId(userGroup.getGroup().getId());
                     return GroupResponseDto.fromUserGroup(userGroup, memberCount);
@@ -199,7 +201,7 @@ public class GroupService {
     }
 
     /**
-     * 그룹 프로필 정보 업데이트
+     * 그룹 프로필 정보 업데이트 (그룹별 닉네임과 프로필 사진 설정)
      */
     @Transactional
     public void updateGroupProfile(Long userId, Long groupId, UpdateGroupProfileRequestDto requestDto,
@@ -240,7 +242,7 @@ public class GroupService {
     public GroupDetailResponseDto getGroupDetail(Long userId, Long groupId) {
         log.info("그룹 상세 정보 조회: userId={}, groupId={}", userId, groupId);
 
-        // 사용자가 해당 그룹에 속해있는지 확인 -> (JOIN FETCH 사용으로 LazyInitializationException 해결)
+        // 사용자가 해당 그룹에 속해있는지 확인
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
 
@@ -257,7 +259,7 @@ public class GroupService {
                 .groupImageUrl(group.getImageUrl())
                 .inviteCode(group.getInviteCode())
                 .currentMemberCount(currentMemberCount)
-                .maxMemberCount(MAX_MEMBERS_PER_GROUP) // 최대 멤버 수
+                .maxMemberCount(MAX_MEMBERS_PER_GROUP)
                 .myNickname(userGroup.getGroupUserNickname())
                 .myProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
                 .isOwner(userGroup.getIsOwner())

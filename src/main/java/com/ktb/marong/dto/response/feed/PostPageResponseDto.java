@@ -15,5 +15,7 @@ public class PostPageResponseDto {
     private int page;
     private int pageSize;
     private int totalFeeds;
+    private Long groupId; // 현재 조회한 그룹 ID
+    private String groupName; // 현재 조회한 그룹 이름
     private List<PostResponseDto> feeds;
 }
