@@ -5,16 +5,14 @@ import com.ktb.marong.dto.request.group.CreateGroupRequestDto;
 import com.ktb.marong.dto.request.group.JoinGroupRequestDto;
 import com.ktb.marong.dto.request.group.UpdateGroupProfileRequestDto;
 import com.ktb.marong.dto.response.common.ApiResponse;
-import com.ktb.marong.dto.response.group.CreateGroupResponseDto;
-import com.ktb.marong.dto.response.group.GroupDetailResponseDto;
-import com.ktb.marong.dto.response.group.GroupResponseDto;
-import com.ktb.marong.dto.response.group.JoinGroupResponseDto;
+import com.ktb.marong.dto.response.group.*;
 import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.repository.UserGroupRepository;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.group.GroupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -247,6 +245,47 @@ public class GroupController {
 
         } catch (Exception e) {
             log.error("닉네임 상태 확인 실패: {}", e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
+        }
+    }
+
+    /**
+     * 전체 그룹 목록 조회 (공개 그룹 목록)
+     * 그룹 가입을 위해 그룹 ID를 알기 위한 API
+     */
+    @GetMapping("/public")
+    public ResponseEntity<?> getAllPublicGroups(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+
+        log.info("전체 그룹 목록 조회 요청: page={}, pageSize={}", page, pageSize);
+
+        try {
+            // 페이지 크기 제한 (최대 50개)
+            if (pageSize > 50) {
+                pageSize = 50;
+            }
+
+            Page<PublicGroupResponseDto> groupPage = groupService.getAllPublicGroups(page, pageSize);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("groups", groupPage.getContent());
+            response.put("currentPage", groupPage.getNumber() + 1);
+            response.put("pageSize", groupPage.getSize());
+            response.put("totalElements", groupPage.getTotalElements());
+            response.put("totalPages", groupPage.getTotalPages());
+            response.put("isFirst", groupPage.isFirst());
+            response.put("isLast", groupPage.isLast());
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    response,
+                    "public_groups_retrieved",
+                    null
+            ));
+
+        } catch (Exception e) {
+            log.error("전체 그룹 목록 조회 실패: {}", e.getMessage());
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
         }

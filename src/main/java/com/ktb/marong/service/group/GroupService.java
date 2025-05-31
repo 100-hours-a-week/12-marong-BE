@@ -8,10 +8,7 @@ import com.ktb.marong.domain.user.User;
 import com.ktb.marong.dto.request.group.CreateGroupRequestDto;
 import com.ktb.marong.dto.request.group.JoinGroupRequestDto;
 import com.ktb.marong.dto.request.group.UpdateGroupProfileRequestDto;
-import com.ktb.marong.dto.response.group.CreateGroupResponseDto;
-import com.ktb.marong.dto.response.group.GroupDetailResponseDto;
-import com.ktb.marong.dto.response.group.GroupResponseDto;
-import com.ktb.marong.dto.response.group.JoinGroupResponseDto;
+import com.ktb.marong.dto.response.group.*;
 import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.GroupRepository;
@@ -20,6 +17,9 @@ import com.ktb.marong.repository.UserRepository;
 import com.ktb.marong.service.file.FileUploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -316,6 +316,32 @@ public class GroupService {
     @Transactional(readOnly = true)
     public boolean hasKakaotechGroupNickname(Long userId) {
         return hasGroupNickname(userId, 1L);
+    }
+
+    /**
+     * 전체 그룹 목록 조회 (페이지네이션, 최신순)
+     * 사용자가 그룹 가입 시 그룹 ID를 알기 위해 사용
+     */
+    @Transactional(readOnly = true)
+    public Page<PublicGroupResponseDto> getAllPublicGroups(int page, int pageSize) {
+        log.info("전체 그룹 목록 조회 요청: page={}, pageSize={}", page, pageSize);
+
+        // 페이지네이션 설정 (최신순 정렬)
+        Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+        // 모든 그룹 조회
+        Page<Group> groupPage = groupRepository.findAllOrderByIdDesc(pageable);
+
+        // DTO 변환
+        Page<PublicGroupResponseDto> result = groupPage.map(group -> {
+            int currentMemberCount = userGroupRepository.countByGroupId(group.getId());
+            return PublicGroupResponseDto.fromGroup(group, currentMemberCount, MAX_MEMBERS_PER_GROUP);
+        });
+
+        log.info("전체 그룹 목록 조회 완료: totalElements={}, currentPage={}, totalPages={}",
+                result.getTotalElements(), result.getNumber() + 1, result.getTotalPages());
+
+        return result;
     }
 
     // 파일 업로드 관련 메서드들
