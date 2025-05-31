@@ -243,6 +243,7 @@ public class FeedService {
 
     /**
      * 사용자의 기본으로 선택될 그룹 ID 조회 (가장 최근 가입한 그룹) -> 로그인 후 처음 로딩될 그룹의 피드
+     * 신규 사용자(그룹 미가입)의 경우 null 반환
      */
     @Transactional(readOnly = true)
     public Long getDefaultGroupId(Long userId) {
@@ -251,7 +252,8 @@ public class FeedService {
         List<UserGroup> userGroups = userGroupRepository.findByUserIdWithGroup(userId);
 
         if (userGroups.isEmpty()) {
-            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "가입된 그룹이 없습니다.");
+            log.info("신규 사용자 - 가입된 그룹이 없음: userId={}", userId);
+            return null; // 에러 대신 null 반환
         }
 
         // 가장 최근에 가입한 그룹 찾기 (joinedAt 기준 내림차순 정렬 후 첫 번째)
@@ -267,11 +269,24 @@ public class FeedService {
     }
 
     /**
-     * 그룹별 게시글 통계 정보 조회
+     * 그룹별 게시글 통계 정보 조회 (신규 사용자 안전 처리)
      */
     @Transactional(readOnly = true)
     public Map<String, Object> getFeedStats(Long userId, Long groupId) {
         log.info("피드 통계 조회: userId={}, groupId={}", userId, groupId);
+
+        // 신규 사용자인 경우 (groupId가 null)
+        if (groupId == null) {
+            log.info("신규 사용자 피드 통계 요청: userId={}", userId);
+            Map<String, Object> emptyStats = new HashMap<>();
+            emptyStats.put("totalPosts", 0);
+            emptyStats.put("weeklyPosts", 0);
+            emptyStats.put("memberCount", 0);
+            emptyStats.put("myPosts", 0);
+            emptyStats.put("currentWeek", WeekCalculator.getCurrentWeek());
+            emptyStats.put("isNewUser", true); // 신규 사용자 플래그
+            return emptyStats;
+        }
 
         // 1. 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
@@ -308,6 +323,7 @@ public class FeedService {
         stats.put("memberCount", memberCount);
         stats.put("myPosts", myPostsCount);
         stats.put("currentWeek", currentWeek);
+        stats.put("isNewUser", false); // 기존 사용자
 
         log.info("피드 통계 조회 완료: groupId={}, stats={}", groupId, stats);
         return stats;
