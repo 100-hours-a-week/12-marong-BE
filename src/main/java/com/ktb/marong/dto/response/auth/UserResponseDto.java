@@ -18,18 +18,18 @@ public class UserResponseDto {
     private String kakaoName;
     private String profileImage;
     private boolean hasCompletedSurvey;
-    private boolean hasGroupNickname; // 추가: 그룹 내 닉네임 설정 여부
+    private boolean hasKakaotechGroupNickname;
 
     /**
      * User 엔티티로부터 UserResponseDto 생성
      */
-    public static UserResponseDto fromEntity(User user, boolean hasGroupNickname) {
+    public static UserResponseDto fromEntity(User user, boolean hasKakaotechGroupNickname) {
         return UserResponseDto.builder()
                 .userId(user.getId())
                 .kakaoName(user.getNickname())
                 .profileImage(user.getProfileImageUrl())
                 .hasCompletedSurvey(user.getHasCompletedSurvey())
-                .hasGroupNickname(hasGroupNickname)
+                .hasKakaotechGroupNickname(hasKakaotechGroupNickname)
                 .build();
     }
 

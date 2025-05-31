@@ -302,7 +302,7 @@ public class GroupService {
     }
 
     /**
-     * 사용자의 특정 그룹 내 닉네임 설정 여부 확인
+     * 사용자의 특정 그룹 내 닉네임 설정 여부 확인 (내부 메소드)
      */
     @Transactional(readOnly = true)
     public boolean hasGroupNickname(Long userId, Long groupId) {
@@ -311,10 +311,10 @@ public class GroupService {
     }
 
     /**
-     * 사용자의 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인 (MVP 호환용)
+     * MVP 호환성: 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인
      */
     @Transactional(readOnly = true)
-    public boolean hasDefaultGroupNickname(Long userId) {
+    public boolean hasKakaotechGroupNickname(Long userId) {
         return hasGroupNickname(userId, 1L);
     }
 

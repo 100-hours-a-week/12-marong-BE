@@ -65,21 +65,21 @@ public class AuthService {
             String jwt = jwtService.createAccessToken(user);
             String refreshToken = jwtService.createRefreshToken(user);
 
-            // 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인 (기존 사용자용)
-            boolean hasGroupNickname = groupService.hasDefaultGroupNickname(user.getId());
+            // 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인 (MVP 호환성)
+            boolean hasKakaotechGroupNickname = groupService.hasKakaotechGroupNickname(user.getId());
 
             // isNewUser 판단 로직: 오직 hasCompletedSurvey로만 판단
             boolean isNewUser = !user.getHasCompletedSurvey();
 
-            log.info("로그인 사용자 상태: userId={}, hasCompletedSurvey={}, hasGroupNickname={}, isNewUser={}",
-                    user.getId(), user.getHasCompletedSurvey(), hasGroupNickname, isNewUser);
+            log.info("로그인 사용자 상태: userId={}, hasCompletedSurvey={}, hasKakaotechGroupNickname={}, isNewUser={}",
+                    user.getId(), user.getHasCompletedSurvey(), hasKakaotechGroupNickname, isNewUser);
 
-            // 로그인 응답 생성 (hasGroupNickname 정보 포함)
+            // 로그인 응답 생성 (hasKakaotechGroupNickname 정보 포함)
             return LoginResponseDto.builder()
                     .jwt(jwt)
                     .refreshToken(refreshToken)
                     .isNewUser(isNewUser)
-                    .user(UserResponseDto.fromEntity(user, hasGroupNickname))
+                    .user(UserResponseDto.fromEntity(user, hasKakaotechGroupNickname))
                     .build();
         } catch (Exception e) {
             log.error("소셜 로그인 처리 중 오류 발생", e);
@@ -140,8 +140,8 @@ public class AuthService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // 카카오테크 부트캠프 그룹(ID: 1) 닉네임 설정 여부 확인
-        boolean hasGroupNickname = groupService.hasDefaultGroupNickname(userId);
+        boolean hasKakaotechGroupNickname = groupService.hasKakaotechGroupNickname(userId);
 
-        return UserResponseDto.fromEntity(user, hasGroupNickname);
+        return UserResponseDto.fromEntity(user, hasKakaotechGroupNickname);
     }
 }
