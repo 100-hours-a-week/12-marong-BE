@@ -3,6 +3,7 @@ package com.ktb.marong.service.feed;
 import com.ktb.marong.common.util.WeekCalculator;
 import com.ktb.marong.domain.feed.Post;
 import com.ktb.marong.domain.feed.PostLike;
+import com.ktb.marong.domain.group.Group;
 import com.ktb.marong.domain.group.UserGroup;
 import com.ktb.marong.domain.manitto.Manitto;
 import com.ktb.marong.domain.mission.Mission;
@@ -201,11 +202,12 @@ public class FeedService {
     public PostPageResponseDto getPosts(Long userId, Long groupId, int page, int pageSize) {
         log.info("게시글 목록 조회: userId={}, groupId={}, page={}", userId, groupId, page);
 
-        // 1. 사용자가 해당 그룹에 속해있는지 확인
-        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
-            throw new CustomException(ErrorCode.GROUP_NOT_FOUND,
-                    "해당 그룹에 속하지 않은 사용자입니다.");
-        }
+        // 1. 사용자가 해당 그룹에 속해있는지 확인하고 그룹 정보도 함께 조회
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        Group group = userGroup.getGroup(); // 그룹 정보 조회
 
         // 2. 페이지네이션 설정
         Pageable pageable = PageRequest.of(page - 1, pageSize);
@@ -225,12 +227,16 @@ public class FeedService {
                 })
                 .collect(Collectors.toList());
 
-        log.info("게시글 목록 조회 완료: groupId={}, totalElements={}", groupId, postPage.getTotalElements());
+        log.info("게시글 목록 조회 완료: groupId={}, groupName={}, totalElements={}",
+                groupId, group.getName(), postPage.getTotalElements());
 
+        // 5. 그룹 정보 포함하여 응답 생성
         return PostPageResponseDto.builder()
                 .page(page)
                 .pageSize(pageSize)
                 .totalFeeds((int) postPage.getTotalElements())
+                .groupId(groupId)
+                .groupName(group.getName())
                 .feeds(postDtos)
                 .build();
     }

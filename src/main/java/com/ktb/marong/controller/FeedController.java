@@ -89,7 +89,7 @@ public class FeedController {
         return ResponseEntity.ok(ApiResponse.success(
                 response,
                 "feeds_retrieved",
-                Map.of("selectedGroupId", groupId) // 현재 선택된 그룹 정보 포함
+                null
         ));
     }
 
