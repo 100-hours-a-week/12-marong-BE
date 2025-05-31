@@ -11,6 +11,7 @@ import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.ManittoRepository;
 import com.ktb.marong.repository.PlaceRecommendationRepository;
 import com.ktb.marong.repository.PlaceRecommendationSessionRepository;
+import com.ktb.marong.repository.UserGroupRepository;
 import com.ktb.marong.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,55 +28,87 @@ import java.util.Random;
 public class PlaceRecommendationService {
 
     private final UserRepository userRepository;
+    private final UserGroupRepository userGroupRepository;
     private final ManittoRepository manittoRepository;
     private final PlaceRecommendationSessionRepository sessionRepository;
     private final PlaceRecommendationRepository placeRepository;
 
     /**
-     * 장소 추천 조회 (밥집 & 카페)
-     * MVP에서는 모든 사용자가 그룹 ID 1에 속한다고 가정
+     * 장소 추천 조회 (밥집 & 카페) - 그룹별 분리
      */
     @Transactional(readOnly = true)
-    public PlaceRecommendationResponseDto getPlaceRecommendations(Long userId) {
-        // 사용자 조회
+    public PlaceRecommendationResponseDto getPlaceRecommendations(Long userId, Long groupId) {
+        log.info("장소 추천 조회 시작: userId={}, groupId={}", userId, groupId);
+
+        // 1. 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹 ID 1 고정)
+        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                    "해당 그룹에 속하지 않은 사용자입니다.");
+        }
+
+        // 3. 현재 주차 계산
         int currentWeek = WeekCalculator.getCurrentWeek();
-        // 사용자(마니또)의 마니띠 조회
-        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, 1L, currentWeek);
+        log.info("현재 주차: {}", currentWeek);
 
-        // 마니또 매칭이 없는 경우 예외 발생
+        // 4. 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹별)
+        List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+
         if (manittoList.isEmpty()) {
-            throw new CustomException(ErrorCode.MANITTO_NOT_FOUND, "마니또 매칭 정보가 없어 장소 추천을 제공할 수 없습니다.");
+            log.warn("마니또 매칭 없음: userId={}, groupId={}, week={}", userId, groupId, currentWeek);
+            throw new CustomException(ErrorCode.MANITTO_NOT_FOUND,
+                    String.format("해당 그룹(ID: %d)에서 마니또 매칭 정보가 없어 장소 추천을 제공할 수 없습니다.", groupId));
         }
 
-        // 매칭된 마니또 정보 (첫 번째 매칭 사용)
+        // 5. 매칭된 마니또 정보
         Manitto manitto = manittoList.get(0);
+        Long manitteeId = manitto.getManittee().getId();
+        log.info("마니또 매칭 정보: manittoId={}, manitteeId={}, groupId={}, week={}",
+                userId, manitteeId, groupId, currentWeek);
 
-        // 현재 주차에 해당하는 장소 추천 세션 조회
-        List<PlaceRecommendationSession> sessions = sessionRepository.findByManittoIdAndWeek(userId, currentWeek);
+        // 6. 장소 추천 세션 조회 - 마니또-마니띠 쌍으로 조회
+        List<PlaceRecommendationSession> sessions = sessionRepository.findByManittoIdAndManitteeIdAndWeek(
+                userId, manitteeId, currentWeek);
 
-        // 세션이 없는 경우 예외 발생
         if (sessions.isEmpty()) {
-            throw new CustomException(ErrorCode.RECOMMENDATION_NOT_FOUND, "장소 추천 정보가 없습니다.");
+            log.warn("장소 추천 세션 없음: manittoId={}, manitteeId={}, week={}", userId, manitteeId, currentWeek);
+            throw new CustomException(ErrorCode.RECOMMENDATION_NOT_FOUND,
+                    String.format("마니또-마니띠 매칭(마니또: %d → 마니띠: %d)에 대한 %d주차 장소 추천 정보가 없습니다.",
+                            userId, manitteeId, currentWeek));
         }
 
-        // 현재 세션 (첫 번째 세션 사용)
+        // 7. 현재 세션
         PlaceRecommendationSession session = sessions.get(0);
+        log.info("장소 추천 세션 정보: sessionId={}, manittoId={}, manitteeId={}, week={}",
+                session.getId(), session.getManitto().getId(), session.getManittee().getId(), currentWeek);
 
-        // 레스토랑 목록 조회 및 DTO 변환
+        // 8. 레스토랑 목록 조회 및 DTO 변환
         List<PlaceRecommendationResponseDto.PlaceDto> restaurants = getRandomPlaces(session.getId(), "restaurant");
 
-        // 카페 목록 조회 및 DTO 변환
+        // 9. 카페 목록 조회 및 DTO 변환
         List<PlaceRecommendationResponseDto.PlaceDto> cafes = getRandomPlaces(session.getId(), "cafe");
 
-        // 응답 생성
+        log.info("장소 추천 조회 완료: userId={}, groupId={}, sessionId={}, restaurants={}, cafes={}",
+                userId, groupId, session.getId(), restaurants.size(), cafes.size());
+
+        // 10. 응답 생성
         return PlaceRecommendationResponseDto.builder()
                 .restaurants(restaurants)
                 .cafes(cafes)
                 .build();
+    }
+
+    /**
+     * MVP 호환성을 위한 기본 그룹 장소 추천
+     */
+    @Deprecated
+    @Transactional(readOnly = true)
+    public PlaceRecommendationResponseDto getPlaceRecommendations(Long userId) {
+        log.warn("기본 메소드 호출 - 기본 그룹(ID: 1) 사용: userId={}", userId);
+        return getPlaceRecommendations(userId, 1L);
     }
 
     /**
@@ -87,12 +120,16 @@ public class PlaceRecommendationService {
 
         // 장소가 없는 경우 빈 목록 반환
         if (places.isEmpty()) {
+            log.info("장소 추천 없음: sessionId={}, type={}", sessionId, type);
             return Collections.emptyList();
         }
 
         // 랜덤으로 1개 선택
         Random random = new Random();
         PlaceRecommendation randomPlace = places.get(random.nextInt(places.size()));
+
+        log.info("장소 추천 선택: sessionId={}, type={}, selectedPlace={}",
+                sessionId, type, randomPlace.getName());
 
         // DTO 변환
         PlaceRecommendationResponseDto.PlaceDto placeDto = convertToPlaceDto(randomPlace);

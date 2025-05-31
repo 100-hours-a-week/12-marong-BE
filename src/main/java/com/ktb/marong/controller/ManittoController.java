@@ -8,10 +8,7 @@ import com.ktb.marong.service.manitto.ManittoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -24,14 +21,19 @@ public class ManittoController {
     private final ManittoService manittoService;
 
     /**
-     * 현재 마니또가 담당하는 마니띠 정보 조회
-     * MVP에서는 모든 사용자가 기본 그룹(ID: 1)에 속한다고 가정
+     * 현재 마니또가 담당하는 마니띠 정보 조회 (그룹 ID 파라미터 추가)
      */
     @GetMapping
-    public ResponseEntity<?> getCurrentManitto(@CurrentUser Long userId) {
-        log.info("마니또가 담당하는 마니띠 정보 요청: userId={}", userId);
+    public ResponseEntity<?> getCurrentManitto(
+            @CurrentUser Long userId,
+            @RequestParam(required = false) Long groupId) {
 
-        ManittoInfoResponseDto response = manittoService.getCurrentManittoInfo(userId);
+        // groupId가 없으면 기본 그룹(1) 사용 (MVP 호환성)
+        Long targetGroupId = (groupId != null) ? groupId : 1L;
+
+        log.info("마니또가 담당하는 마니띠 정보 요청: userId={}, groupId={}", userId, targetGroupId);
+
+        ManittoInfoResponseDto response = manittoService.getCurrentManittoInfo(userId, targetGroupId);
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,
@@ -41,13 +43,19 @@ public class ManittoController {
     }
 
     /**
-     * 마니또 미션 상태 조회
+     * 마니또 미션 상태 조회 (그룹 ID 파라미터 추가)
      */
     @GetMapping("/missions")
-    public ResponseEntity<?> getMissionStatus(@CurrentUser Long userId) {
-        log.info("미션 상태 요청: userId={}", userId);
+    public ResponseEntity<?> getMissionStatus(
+            @CurrentUser Long userId,
+            @RequestParam(required = false) Long groupId) {
 
-        var response = manittoService.getMissionStatus(userId);
+        // groupId가 없으면 기본 그룹(1) 사용 (MVP 호환성)
+        Long targetGroupId = (groupId != null) ? groupId : 1L;
+
+        log.info("미션 상태 요청: userId={}, groupId={}", userId, targetGroupId);
+
+        var response = manittoService.getMissionStatus(userId, targetGroupId);
 
         return ResponseEntity.ok(ApiResponse.success(
                 response,
@@ -57,19 +65,26 @@ public class ManittoController {
     }
 
     /**
-     * 새 미션 할당
+     * 새 미션 할당 (그룹 ID 파라미터 추가)
      */
     @PostMapping("/missions/assign")
-    public ResponseEntity<?> assignNewMission(@CurrentUser Long userId) {
-        log.info("새 미션 할당 요청: userId={}", userId);
+    public ResponseEntity<?> assignNewMission(
+            @CurrentUser Long userId,
+            @RequestParam(required = false) Long groupId) {
 
-        UserMission newMission = manittoService.assignNewMission(userId);
+        // groupId가 없으면 기본 그룹(1) 사용 (MVP 호환성)
+        Long targetGroupId = (groupId != null) ? groupId : 1L;
+
+        log.info("새 미션 할당 요청: userId={}, groupId={}", userId, targetGroupId);
+
+        UserMission newMission = manittoService.assignNewMission(userId, targetGroupId);
 
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of(
                         "missionId", newMission.getMission().getId(),
                         "title", newMission.getMission().getTitle(),
-                        "description", newMission.getMission().getDescription()
+                        "description", newMission.getMission().getDescription(),
+                        "groupId", targetGroupId
                 ),
                 "mission_assigned",
                 null

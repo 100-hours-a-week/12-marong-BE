@@ -12,11 +12,30 @@ import java.util.Optional;
 @Repository
 public interface AnonymousNameRepository extends JpaRepository<AnonymousName, Long> {
 
-    // 수정된 메소드: 특정 사용자의 특정 주차에 해당하는 익명 이름 조회
+    // 기본 메소드: 그룹별 익명 이름 조회
+    @Query("SELECT a.anonymousName FROM AnonymousName a WHERE a.user.id = :userId AND a.groupId = :groupId AND a.week = :week")
+    Optional<String> findAnonymousNameByUserIdAndGroupIdAndWeek(
+            @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
+            @Param("week") Integer week);
+
+    // 기본 메소드: 그룹별 모든 익명 이름 조회
+    @Query("SELECT a.anonymousName FROM AnonymousName a WHERE a.user.id = :userId AND a.groupId = :groupId")
+    List<String> findAnonymousNamesByUserIdAndGroupId(@Param("userId") Long userId, @Param("groupId") Long groupId);
+
+    // MVP 호환성을 위한 메소드들 (Deprecated 처리)
+
+    /**
+     * @deprecated MVP 호환성을 위해 유지. 새로운 코드에서는 findAnonymousNameByUserIdAndGroupIdAndWeek 사용
+     */
+    @Deprecated
     @Query("SELECT a.anonymousName FROM AnonymousName a WHERE a.user.id = :userId AND a.groupId = 1 AND a.week = :week")
     Optional<String> findAnonymousNameByUserIdAndWeek(@Param("userId") Long userId, @Param("week") Integer week);
 
-    // 기존 메소드는 남겨두되 List로 변경
+    /**
+     * @deprecated MVP 호환성을 위해 유지. 새로운 코드에서는 findAnonymousNamesByUserIdAndGroupId 사용
+     */
+    @Deprecated
     @Query("SELECT a.anonymousName FROM AnonymousName a WHERE a.user.id = :userId AND a.groupId = 1")
     List<String> findAnonymousNamesByUserId(@Param("userId") Long userId);
 }

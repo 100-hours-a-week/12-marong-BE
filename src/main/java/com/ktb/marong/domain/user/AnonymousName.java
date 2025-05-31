@@ -20,9 +20,8 @@ public class AnonymousName {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // MVP에서는 모든 사용자가 그룹 ID 1에 속함
     @Column(name = "group_id", nullable = false)
-    private Long groupId = 1L;
+    private Long groupId; // 그룹 ID를 파라미터로 받도록 수정
 
     @Column(name = "anonymous_name", nullable = false)
     private String anonymousName;
@@ -31,8 +30,9 @@ public class AnonymousName {
     private Integer week;
 
     @Builder
-    public AnonymousName(User user, String anonymousName, Integer week) {
+    public AnonymousName(User user, Long groupId, String anonymousName, Integer week) {
         this.user = user;
+        this.groupId = groupId; // 파라미터로 받은 groupId 사용
         this.anonymousName = anonymousName;
         this.week = week;
     }

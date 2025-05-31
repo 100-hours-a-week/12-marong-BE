@@ -19,9 +19,9 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
     List<UserMission> findByUserIdAndGroupIdAndWeek(Long userId, Long groupId, Integer week);
 
     /**
-     * 특정 사용자의 특정 날짜 미션 존재 여부 확인
+     * 특정 사용자의 특정 날짜 미션 존재 여부 확인 (그룹 ID 추가)
      */
-    boolean existsByUserIdAndAssignedDate(Long userId, LocalDate assignedDate);
+    boolean existsByUserIdAndGroupIdAndAssignedDate(Long userId, Long groupId, LocalDate assignedDate);
 
     /**
      * 특정 사용자, 미션, 주차에 해당하는 미션 조회
@@ -30,30 +30,37 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
     Optional<UserMission> findByUserIdAndMissionIdAndWeek(Long userId, Long missionId, Integer week);
 
     /**
-     * 특정 주차의 특정 날짜 이전에 할당된 진행 중인 미션을 찾는 쿼리
-     * 완료되지 않고 지나간 미션들을 처리하기 위함
+     * 특정 사용자, 그룹, 미션, 주차에 해당하는 미션 조회
      */
-    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate < :date AND um.status = 'ing' AND um.week = :week")
+    Optional<UserMission> findByUserIdAndGroupIdAndMissionIdAndWeek(Long userId, Long groupId, Long missionId, Integer week);
+
+    /**
+     * 특정 주차의 특정 날짜 이전에 할당된 진행 중인 미션을 찾는 쿼리 (그룹 ID 추가)
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId AND um.assignedDate < :date AND um.status = 'ing' AND um.week = :week")
     List<UserMission> findIncompleteMissionsBeforeDate(
             @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
             @Param("date") LocalDate date,
             @Param("week") Integer week);
 
     /**
-     * 특정 주차의 오늘 할당된 진행 중인 미션 조회
+     * 특정 주차의 오늘 할당된 진행 중인 미션 조회 (그룹 ID 추가)
      */
-    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
     List<UserMission> findTodaysMissions(
             @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
             @Param("date") LocalDate date,
             @Param("week") Integer week);
 
     /**
-     * 특정 날짜와 주차에 할당된 모든 미션 조회 (상태 무관)
+     * 특정 날짜와 주차에 할당된 모든 미션 조회 (상태 무관, 그룹 ID 추가)
      */
-    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.assignedDate = :date AND um.week = :week")
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId AND um.assignedDate = :date AND um.week = :week")
     List<UserMission> findAllMissionsAssignedOnDate(
             @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
             @Param("date") LocalDate date,
             @Param("week") Integer week);
 

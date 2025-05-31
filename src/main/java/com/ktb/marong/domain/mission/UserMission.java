@@ -27,7 +27,7 @@ public class UserMission {
     private User user;
 
     @Column(name = "group_id", nullable = false)
-    private Long groupId = 1L;  // MVP에서는 기본 그룹 ID를 1로 고정
+    private Long groupId; // 그룹 ID를 파라미터로 받도록 수정
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mission_id", nullable = false)
@@ -53,7 +53,7 @@ public class UserMission {
     @Builder
     public UserMission(User user, Long groupId, Mission mission, Integer week, LocalDate assignedDate) {
         this.user = user;
-        this.groupId = groupId;
+        this.groupId = groupId; // 파라미터로 받은 groupId 사용
         this.mission = mission;
         this.week = week;
         this.assignedDate = assignedDate != null ? assignedDate : LocalDate.now();

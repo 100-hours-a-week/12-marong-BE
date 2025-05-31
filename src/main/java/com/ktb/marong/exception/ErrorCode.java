@@ -57,7 +57,28 @@ public enum ErrorCode {
     MISSION_STATUS_NOT_FOUND(404, "진행 중인 미션이 없습니다."),
 
     // 추천 관련 에러
-    RECOMMENDATION_NOT_FOUND(404, "추천 정보를 찾을 수 없습니다.");
+    RECOMMENDATION_NOT_FOUND(404, "추천 정보를 찾을 수 없습니다."),
+
+    // 그룹 관련 에러
+    MAX_GROUPS_EXCEEDED(400, "사용자당 최대 4개의 그룹까지 생성/가입할 수 있습니다."),
+    GROUP_MEMBER_LIMIT_EXCEEDED(400, "그룹당 최대 150명까지 가입할 수 있습니다."),
+    GROUP_NAME_DUPLICATED(409, "동일한 그룹 이름이 이미 존재합니다."),
+    INVITE_CODE_DUPLICATED(409, "초대코드가 이미 사용 중입니다. 다른 코드를 입력해주세요."),
+    GROUP_NOT_FOUND(404, "해당 그룹을 찾을 수 없습니다."),
+    INVALID_INVITE_CODE(400, "유효하지 않은 초대코드입니다."),
+    INVITE_CODE_MISMATCH(400, "초대코드가 일치하지 않습니다. 다시 확인해주세요."),
+    INVALID_INVITE_CODE_FORMAT(400, "초대 코드는 영어와 숫자를 포함한 정확히 6자리여야 합니다."),
+    INVITE_CODE_TOO_SHORT(400, "초대 코드가 너무 짧습니다. 6자리로 입력해주세요."),
+    INVITE_CODE_TOO_LONG(400, "초대 코드가 너무 깁니다. 6자리로 입력해주세요."),
+    INVITE_CODE_INVALID_CHARACTERS(400, "초대 코드는 영어와 숫자만 사용할 수 있습니다."),
+    ALREADY_JOINED_GROUP(409, "이미 가입된 그룹입니다."),
+    GROUP_NICKNAME_REQUIRED(400, "그룹 내 사용자 닉네임 설정이 필요합니다."),
+
+    // 닉네임 관련 에러 (새로 추가)
+    NICKNAME_TOO_SHORT(400, "닉네임이 너무 짧습니다."),
+    NICKNAME_TOO_LONG(400, "닉네임이 너무 깁니다."),
+    INVALID_NICKNAME_FORMAT(400, "유효하지 않은 닉네임 형식입니다."),
+    NICKNAME_DUPLICATED_IN_GROUP(409, "해당 그룹에서 이미 사용 중인 닉네임입니다.");
 
     private final int status;
     private final String message;
