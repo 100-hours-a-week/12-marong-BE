@@ -10,6 +10,7 @@ import com.ktb.marong.domain.user.User;
 import com.ktb.marong.dto.response.manitto.ManittoDetailResponseDto;
 import com.ktb.marong.dto.response.manitto.ManittoInfoResponseDto;
 import com.ktb.marong.dto.response.manitto.MissionStatusResponseDto;
+import com.ktb.marong.dto.response.mission.TodayMissionResponseDto;
 import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.*;
@@ -27,6 +28,7 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -352,6 +354,8 @@ public class ManittoService {
      */
     @Transactional
     public MissionStatusResponseDto getMissionStatus(Long userId, Long groupId) {
+        log.info("미션 상태 조회 시작: userId={}, groupId={}", userId, groupId);
+
         // 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -365,11 +369,17 @@ public class ManittoService {
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
+        log.info("미션 상태 조회 정보: userId={}, groupId={}, currentWeek={}, today={}",
+                userId, groupId, currentWeek, today);
+
         // 하루가 지난 미션을 미완료 상태로 처리 (현재 주차만)
         handleExpiredMissions(userId, groupId, today, currentWeek);
 
         // 현재 주차에 해당하는 사용자 미션 조회
         List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, groupId, currentWeek);
+
+        log.info("조회된 사용자 미션 개수: userId={}, groupId={}, week={}, count={}",
+                userId, groupId, currentWeek, userMissions.size());
 
         // 진행 중인 미션, 완료된 미션, 미완료 미션 구분
         List<UserMission> completedMissions = new ArrayList<>();
@@ -377,6 +387,9 @@ public class ManittoService {
         List<UserMission> incompleteMissions = new ArrayList<>();
 
         for (UserMission userMission : userMissions) {
+            log.info("미션 처리: missionId={}, status={}, assignedDate={}",
+                    userMission.getMission().getId(), userMission.getStatus(), userMission.getAssignedDate());
+
             // 미션 상태를 통해 판단
             if ("completed".equals(userMission.getStatus())) {
                 completedMissions.add(userMission);
@@ -389,7 +402,7 @@ public class ManittoService {
                     int postCount = postRepository.countByUserIdAndMissionIdAndWeekAndGroupId(
                             userId, userMission.getMission().getId(), currentWeek, groupId);
 
-                    log.info("미션 완료 확인: userId={}, missionId={}, week={}, groupId={}, postCount={}",
+                    log.info("게시글 작성 확인: userId={}, missionId={}, week={}, groupId={}, postCount={}",
                             userId, userMission.getMission().getId(), currentWeek, groupId, postCount);
 
                     if (postCount > 0) {
@@ -397,6 +410,7 @@ public class ManittoService {
                         userMission.complete();
                         userMissionRepository.save(userMission);
                         completedMissions.add(userMission);
+                        log.info("미션 완료 상태로 업데이트: userId={}, missionId={}", userId, userMission.getMission().getId());
                     } else {
                         inProgressMissions.add(userMission);
                     }
@@ -405,13 +419,16 @@ public class ManittoService {
                     userMission.markAsIncomplete();
                     userMissionRepository.save(userMission);
                     incompleteMissions.add(userMission);
+                    log.info("미션 미완료 상태로 업데이트: userId={}, missionId={}, assignedDate={}",
+                            userId, userMission.getMission().getId(), userMission.getAssignedDate());
                 }
             }
         }
 
         // 진행 중인 미션이 없고 전체 미션이 5개 미만이면 새 미션 할당이 필요하다는 로그만 남김
         if (inProgressMissions.isEmpty() && userMissions.size() < 5) {
-            log.info("새로운 미션 할당이 필요합니다. 사용자 ID: {}, 그룹 ID: {}", userId, groupId);
+            log.info("새로운 미션 할당이 필요합니다. userId={}, groupId={}, currentMissionCount={}",
+                    userId, groupId, userMissions.size());
         }
 
         // DTO 변환
@@ -436,6 +453,9 @@ public class ManittoService {
         int completed = completedMissions.size();
         int incomplete = incompleteMissions.size();
 
+        log.info("미션 상태 조회 완료: userId={}, groupId={}, total={}, completed={}, incomplete={}, inProgress={}",
+                userId, groupId, total, completed, incomplete, inProgressMissions.size());
+
         return MissionStatusResponseDto.builder()
                 .progress(MissionStatusResponseDto.ProgressDto.builder()
                         .completed(completed)
@@ -459,10 +479,13 @@ public class ManittoService {
     }
 
     /**
-     * 새 미션 할당 (그룹 ID 파라미터 추가)
+     * 새 미션 할당 (그룹 ID 파라미터 추가) - 랜덤 미션 할당
+     * 시스템이 자동으로 사용자에게 적합한 미션을 랜덤으로 할당
      */
     @Transactional
     public UserMission assignNewMission(Long userId, Long groupId) {
+        log.info("새 미션 할당 요청: userId={}, groupId={}", userId, groupId);
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
@@ -494,8 +517,8 @@ public class ManittoService {
         // 현재 주차의 모든 미션 조회 (중복 방지용)
         List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
-        // 할당 가능한 미션 찾기
-        Mission mission = getAvailableMission(userMissions);
+        // 할당 가능한 미션 찾기 (그룹별로 독립적)
+        Mission mission = getAvailableMissionForGroup(userId, groupId, userMissions);
         if (mission == null) {
             throw new CustomException(ErrorCode.MISSION_NOT_FOUND, "할당 가능한 미션이 없습니다.");
         }
@@ -503,21 +526,118 @@ public class ManittoService {
         // 미션 생성 및 저장
         UserMission userMission = UserMission.builder()
                 .user(user)
-                .groupId(groupId) // 파라미터로 받은 그룹 ID 사용
+                .groupId(groupId)
                 .mission(mission)
                 .week(currentWeek)
-                .assignedDate(today) // 오늘 날짜로 할당
+                .assignedDate(today)
                 .build();
 
-        return userMissionRepository.save(userMission);
+        UserMission savedMission = userMissionRepository.save(userMission);
+
+        log.info("새 미션 할당 완료: userId={}, groupId={}, missionId={}, userMissionId={}",
+                userId, groupId, mission.getId(), savedMission.getId());
+
+        return savedMission;
     }
 
     /**
      * MVP 호환성을 위한 오버로드 메서드 (기본 그룹 ID 1 사용)
      */
+    @Deprecated
     @Transactional
     public UserMission assignNewMission(Long userId) {
         return assignNewMission(userId, 1L);
+    }
+
+    /**
+     * 그룹별 오늘 할당된 미션 조회
+     */
+    @Transactional(readOnly = true)
+    public TodayMissionResponseDto getTodayAssignedMission(Long userId, Long groupId) {
+        log.info("오늘 할당된 미션 조회: userId={}, groupId={}", userId, groupId);
+
+        // 사용자 조회
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
+        }
+
+        int currentWeek = WeekCalculator.getCurrentWeek();
+        LocalDate today = LocalDate.now();
+
+        // 오늘 할당된 미션 조회 (상태와 관계없이)
+        List<UserMission> todaysMissions = userMissionRepository.findAllMissionsAssignedOnDate(
+                userId, groupId, today, currentWeek);
+
+        if (todaysMissions.isEmpty()) {
+            log.info("오늘 할당된 미션 없음: userId={}, groupId={}, date={}", userId, groupId, today);
+            return null; // 204 No Content 응답을 위해 null 반환
+        }
+
+        // 첫 번째 미션 반환 (하루에 1개만 할당되므로)
+        UserMission todaysMission = todaysMissions.get(0);
+
+        // 게시글 작성 여부 확인하여 상태 업데이트
+        int postCount = postRepository.countByUserIdAndMissionIdAndWeekAndGroupId(
+                userId, todaysMission.getMission().getId(), currentWeek, groupId);
+
+        if (postCount > 0 && !"completed".equals(todaysMission.getStatus())) {
+            // 게시글이 있는데 아직 완료 상태가 아니면 완료로 업데이트
+            todaysMission.complete();
+            userMissionRepository.save(todaysMission);
+        }
+
+        log.info("오늘 할당된 미션 조회 완료: userId={}, groupId={}, missionId={}, status={}",
+                userId, groupId, todaysMission.getMission().getId(), todaysMission.getStatus());
+
+        return TodayMissionResponseDto.builder()
+                .missionId(todaysMission.getMission().getId())
+                .title(todaysMission.getMission().getTitle())
+                .description(todaysMission.getMission().getDescription())
+                .difficulty(todaysMission.getMission().getDifficulty())
+                .selectedAt(todaysMission.getAssignedDate())
+                .status(todaysMission.getStatus())
+                .build();
+    }
+
+    /**
+     * 그룹별로 할당 가능한 미션 찾기 (중복 방지)
+     */
+    private Mission getAvailableMissionForGroup(Long userId, Long groupId, List<UserMission> existingMissions) {
+        log.info("그룹별 할당 가능한 미션 찾기: userId={}, groupId={}, existingMissionsCount={}",
+                userId, groupId, existingMissions.size());
+
+        // 이미 할당된 미션의 ID 목록 (해당 그룹에서)
+        List<Long> assignedMissionIds = existingMissions.stream()
+                .map(um -> um.getMission().getId())
+                .collect(Collectors.toList());
+
+        log.info("이미 할당된 미션 IDs: {}", assignedMissionIds);
+
+        // 전체 미션 중 아직 할당되지 않은 미션 찾기
+        List<Mission> allMissions = missionRepository.findAll();
+        List<Mission> availableMissions = allMissions.stream()
+                .filter(mission -> !assignedMissionIds.contains(mission.getId()))
+                .collect(Collectors.toList());
+
+        log.info("할당 가능한 미션 개수: {}", availableMissions.size());
+
+        if (availableMissions.isEmpty()) {
+            log.warn("할당 가능한 미션이 없음: userId={}, groupId={}", userId, groupId);
+            return null;
+        }
+
+        // 랜덤으로 하나 선택
+        int randomIndex = (int) (Math.random() * availableMissions.size());
+        Mission selectedMission = availableMissions.get(randomIndex);
+
+        log.info("랜덤 미션 선택: userId={}, groupId={}, selectedMissionId={}, title={}",
+                userId, groupId, selectedMission.getId(), selectedMission.getTitle());
+
+        return selectedMission;
     }
 
     /**

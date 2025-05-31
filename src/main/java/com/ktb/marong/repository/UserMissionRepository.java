@@ -75,4 +75,14 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
      * 주차 변경 시 남아있는 미션을 초기화하기 위해 사용
      */
     List<UserMission> findByWeek(Integer week);
+
+    /**
+     * 특정 사용자, 그룹, 날짜에 할당된 진행 중인 미션 조회 (오늘의 활성 미션만)
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
+    List<UserMission> findTodaysActiveMissions(
+            @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
 }
