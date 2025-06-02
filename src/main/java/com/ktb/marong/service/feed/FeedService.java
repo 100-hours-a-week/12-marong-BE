@@ -106,7 +106,23 @@ public class FeedService {
         }
 
         Manitto manitto = manittoList.get(0);
-        String manitteeName = manitto.getManittee().getNickname(); // 마니띠(대상자)의 실명
+        User manitteeUser = manitto.getManittee(); // 마니띠 사용자 객체
+
+        // 마니띠의 그룹 내 닉네임 설정 여부 확인
+        UserGroup manitteeUserGroup = userGroupRepository.findByUserIdAndGroupId(manitteeUser.getId(), groupId)
+                .orElse(null);
+
+        // 마니띠 이름 결정: 그룹 내 닉네임이 있으면 그걸로 사용, 없으면 카카오 실명으로 사용
+        String manitteeName;
+        if (manitteeUserGroup != null && manitteeUserGroup.hasGroupUserNickname()) {
+            manitteeName = manitteeUserGroup.getGroupUserNickname(); // 그룹 내 닉네임
+            log.info("마니띠 그룹 내 닉네임 사용: manitteeId={}, groupNickname={}",
+                    manitteeUser.getId(), manitteeName);
+        } else {
+            manitteeName = manitteeUser.getNickname(); // 카카오 실명
+            log.info("마니띠 카카오 실명 사용: manitteeId={}, kakaoName={}",
+                    manitteeUser.getId(), manitteeName);
+        }
 
         // 10. 익명 이름 조회 (그룹별 익명 이름)
         String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndGroupIdAndWeek(
@@ -142,7 +158,8 @@ public class FeedService {
         // 14. 미션 완료 상태 업데이트
         updateMissionStatus(userId, groupId, mission.getId(), currentWeek);
 
-        log.info("게시글 저장 완료: postId={}, userId={}, groupId={}", savedPost.getId(), userId, groupId);
+        log.info("게시글 저장 완료: postId={}, userId={}, groupId={}, manitteeName={}",
+                savedPost.getId(), userId, groupId, manitteeName);
         return savedPost.getId();
     }
 
