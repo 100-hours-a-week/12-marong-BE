@@ -13,10 +13,10 @@ import lombok.NoArgsConstructor;
 public class CreateGroupRequestDto {
 
     @NotBlank(message = "그룹 이름은 필수입니다.")
-    @Size(max = 30, message = "그룹 이름은 최대 30자까지 입력 가능합니다.")
+    @Size(max = 10, message = "그룹 이름은 최대 10자까지 입력 가능합니다.")
     private String groupName;
 
-    @Size(max = 200, message = "그룹 설명은 최대 200자까지 입력 가능합니다.")
+    @Size(max = 30, message = "그룹 설명은 최대 30자까지 입력 가능합니다.")
     private String description;
 
     @NotBlank(message = "초대 코드는 필수입니다.")

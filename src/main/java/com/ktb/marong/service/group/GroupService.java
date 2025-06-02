@@ -1,6 +1,7 @@
 package com.ktb.marong.service.group;
 
 import com.ktb.marong.common.util.GroupNicknameValidator;
+import com.ktb.marong.common.util.GroupValidator;
 import com.ktb.marong.common.util.InviteCodeValidator;
 import com.ktb.marong.domain.group.Group;
 import com.ktb.marong.domain.group.UserGroup;
@@ -55,6 +56,14 @@ public class GroupService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        // 그룹 이름 및 설명 유효성 검증
+        GroupValidator.validateGroupName(requestDto.getGroupName());
+        GroupValidator.validateGroupDescription(requestDto.getDescription());
+
+        // 그룹 이름 및 설명 정규화
+        String normalizedGroupName = GroupValidator.normalizeGroupName(requestDto.getGroupName());
+        String normalizedDescription = GroupValidator.normalizeGroupDescription(requestDto.getDescription());
+
         // 그룹 개수 제한 체크
         checkGroupLimit(userId);
 
@@ -67,7 +76,7 @@ public class GroupService {
         String normalizedNickname = GroupNicknameValidator.normalizeNickname(requestDto.getGroupUserNickname());
 
         // 그룹 이름 중복 체크
-        if (groupRepository.existsByName(requestDto.getGroupName())) {
+        if (groupRepository.existsByName(normalizedGroupName)) {
             throw new CustomException(ErrorCode.GROUP_NAME_DUPLICATED);
         }
 
@@ -84,8 +93,8 @@ public class GroupService {
 
         // 그룹 생성
         Group group = Group.builder()
-                .name(requestDto.getGroupName())
-                .description(requestDto.getDescription())
+                .name(normalizedGroupName)
+                .description(normalizedDescription)
                 .inviteCode(normalizedInviteCode)
                 .imageUrl(groupImageUrl)
                 .build();
@@ -104,7 +113,7 @@ public class GroupService {
         userGroupRepository.save(userGroup);
 
         log.info("그룹 생성 완료: groupId={}, groupName={}, inviteCode={}, nickname={}",
-                savedGroup.getId(), savedGroup.getName(), normalizedInviteCode, normalizedNickname);
+                savedGroup.getId(), normalizedGroupName, normalizedInviteCode, normalizedNickname);
 
         return CreateGroupResponseDto.builder()
                 .groupId(savedGroup.getId())

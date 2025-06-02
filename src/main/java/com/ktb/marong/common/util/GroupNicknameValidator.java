@@ -12,7 +12,7 @@ public class GroupNicknameValidator {
 
     private static final int MIN_NICKNAME_LENGTH = 2;
     private static final int MAX_NICKNAME_LENGTH = 20;
-    private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9._\\-\\s]{2,20}$");
+    private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9._\\-\\s()]{2,20}$");
 
     /**
      * 닉네임 기본 형식 검증
@@ -34,7 +34,7 @@ public class GroupNicknameValidator {
 
         if (!NICKNAME_PATTERN.matcher(trimmedNickname).matches()) {
             throw new CustomException(ErrorCode.INVALID_NICKNAME_FORMAT,
-                    "닉네임은 한글, 영문, 숫자, 점(.), 언더스코어(_), 하이픈(-), 공백만 사용 가능합니다.");
+                    "닉네임은 한글, 영문, 숫자, 점(.), 언더스코어(_), 하이픈(-), 공백, 괄호()만 사용 가능합니다.");
         }
 
         // 공백만으로 이루어진 닉네임 방지

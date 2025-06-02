@@ -75,4 +75,60 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
      * 주차 변경 시 남아있는 미션을 초기화하기 위해 사용
      */
     List<UserMission> findByWeek(Integer week);
+
+    /**
+     * 특정 사용자, 그룹, 날짜에 할당된 진행 중인 미션 조회 (오늘의 활성 미션만)
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
+    List<UserMission> findTodaysActiveMissions(
+            @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 그룹의 특정 주차에서 진행 중인 모든 미션 조회
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.groupId = :groupId AND um.week = :week AND um.status = 'ing'")
+    List<UserMission> findInProgressMissionsByGroupAndWeek(
+            @Param("groupId") Long groupId,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 그룹의 특정 주차에서 완료된 모든 미션 조회
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.groupId = :groupId AND um.week = :week AND um.status = 'completed'")
+    List<UserMission> findCompletedMissionsByGroupAndWeek(
+            @Param("groupId") Long groupId,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 그룹의 특정 주차에서 미완료된 모든 미션 조회
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.groupId = :groupId AND um.week = :week AND um.status = 'incomplete'")
+    List<UserMission> findIncompleteMissionsByGroupAndWeek(
+            @Param("groupId") Long groupId,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 사용자의 특정 그룹에서 오늘 할당된 진행 중인 미션만 조회
+     */
+    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId " +
+            "AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
+    List<UserMission> findTodaysInProgressMissionsByUserAndGroup(
+            @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 사용자의 특정 그룹에서 특정 상태의 미션 개수 조회
+     */
+    @Query("SELECT COUNT(um) FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId " +
+            "AND um.week = :week AND um.status = :status")
+    long countMissionsByUserGroupWeekAndStatus(
+            @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
+            @Param("week") Integer week,
+            @Param("status") String status);
 }
