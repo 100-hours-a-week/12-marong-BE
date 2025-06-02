@@ -13,6 +13,7 @@ public enum ErrorCode {
 
     // 공통 에러
     INTERNAL_SERVER_ERROR(500, "서버 오류입니다."),
+    INVALID_INPUT(400, "입력값이 올바르지 않습니다."),
 
     // 인증 관련 에러
     UNAUTHORIZED(401, "인증이 필요합니다."),
