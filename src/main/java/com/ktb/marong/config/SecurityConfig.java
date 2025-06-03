@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/survey").authenticated()
                         .requestMatchers("/groups/**").authenticated()
+                        .requestMatchers("/test-discord").permitAll()
                         // 인증이 필요한 API
                         .anyRequest().authenticated()
                 )

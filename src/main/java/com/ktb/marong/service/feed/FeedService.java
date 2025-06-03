@@ -240,7 +240,12 @@ public class FeedService {
                             userRepository.findById(userId)
                                     .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND)),
                             post);
-                    return PostResponseDto.fromEntity(post, likeCount, isLiked);
+
+                    // 실시간 마니띠 이름 결정
+                    String realTimeManitteeName = determineManitteeNameForPost(post, groupId);
+
+                    return PostResponseDto.fromEntityWithRealTimeManitteeName(
+                            post, likeCount, isLiked, realTimeManitteeName);
                 })
                 .collect(Collectors.toList());
 
@@ -256,6 +261,42 @@ public class FeedService {
                 .groupName(group.getName())
                 .feeds(postDtos)
                 .build();
+    }
+
+    /**
+     * 게시글의 마니띠 이름을 실시간으로 결정
+     */
+    private String determineManitteeNameForPost(Post post, Long groupId) {
+        try {
+            // 해당 게시글 작성자의 해당 주차 마니또 매칭 정보 조회
+            List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(
+                    post.getUser().getId(), groupId, post.getWeek());
+
+            if (manittoList.isEmpty()) {
+                // 매칭 정보가 없으면 기존 DB에 저장된 이름 사용
+                return post.getManitteeName();
+            }
+
+            Manitto manitto = manittoList.get(0);
+            User manitteeUser = manitto.getManittee();
+
+            // 마니띠의 현재 그룹 내 닉네임 설정 여부 확인
+            UserGroup manitteeUserGroup = userGroupRepository.findByUserIdAndGroupId(
+                    manitteeUser.getId(), groupId).orElse(null);
+
+            // 그룹 내 닉네임이 있으면 그걸로 사용, 없으면 카카오 실명으로 사용
+            if (manitteeUserGroup != null && manitteeUserGroup.hasGroupUserNickname()) {
+                return manitteeUserGroup.getGroupUserNickname(); // 그룹 내 닉네임
+            } else {
+                return manitteeUser.getNickname(); // 카카오 실명
+            }
+
+        } catch (Exception e) {
+            log.warn("마니띠 이름 실시간 결정 실패, 기존 이름 사용: postId={}, error={}",
+                    post.getId(), e.getMessage());
+            // 오류 발생시 기존 DB에 저장된 이름 사용
+            return post.getManitteeName();
+        }
     }
 
     /**

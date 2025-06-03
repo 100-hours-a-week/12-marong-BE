@@ -45,4 +45,19 @@ public class PostResponseDto {
                 .liked(isLiked)
                 .build();
     }
+
+    public static PostResponseDto fromEntityWithRealTimeManitteeName(Post post, int likesCount, boolean isLiked, String realTimeManitteeName) {
+        return PostResponseDto.builder()
+                .feedId(post.getId())
+                .author(post.getAnonymousSnapshotName())
+                .missionTitle(post.getMission().getTitle())
+                .manitteeName(realTimeManitteeName) // 실시간으로 결정된 마니띠 이름 사용
+                .content(post.getContent())
+                .likes(likesCount)
+                .createdAt(post.getCreatedAt())
+                .imageUrl(post.getImageUrl())
+                .week(post.getWeek())
+                .liked(isLiked)
+                .build();
+    }
 }
