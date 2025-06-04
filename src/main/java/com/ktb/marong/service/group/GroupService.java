@@ -40,7 +40,7 @@ public class GroupService {
     private final UserRepository userRepository;
     private final FileUploadService fileUploadService;
 
-    private static final int MAX_GROUPS_PER_USER = 4;
+    private static final int MAX_GROUPS_PER_USER = 6;
     private static final int MAX_MEMBERS_PER_GROUP = 150;
 
     /**
