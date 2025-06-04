@@ -1,12 +1,14 @@
 package com.ktb.marong.controller;
 
 import com.ktb.marong.common.util.GroupNicknameValidator;
+import com.ktb.marong.common.util.GroupValidator;
 import com.ktb.marong.dto.request.group.CreateGroupRequestDto;
 import com.ktb.marong.dto.request.group.JoinGroupRequestDto;
 import com.ktb.marong.dto.request.group.UpdateGroupProfileRequestDto;
 import com.ktb.marong.dto.response.common.ApiResponse;
 import com.ktb.marong.dto.response.group.*;
 import com.ktb.marong.exception.CustomException;
+import com.ktb.marong.repository.GroupRepository;
 import com.ktb.marong.repository.UserGroupRepository;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.group.GroupService;
@@ -31,6 +33,7 @@ public class GroupController {
 
     private final GroupService groupService;
     private final UserGroupRepository userGroupRepository;
+    private final GroupRepository groupRepository;
 
     /**
      * 그룹 생성
@@ -137,6 +140,40 @@ public class GroupController {
                 "group_detail_retrieved",
                 null
         ));
+    }
+
+    /**
+     * 그룹 이름 중복 체크 API
+     */
+    @GetMapping("/name/check")
+    public ResponseEntity<?> checkGroupName(@RequestParam String groupName) {
+        log.info("그룹 이름 중복 체크 요청: groupName={}", groupName);
+
+        try {
+            // 그룹 이름 형식 검증
+            GroupValidator.validateGroupName(groupName);
+            String normalizedName = GroupValidator.normalizeGroupName(groupName);
+
+            boolean isDuplicated = groupRepository.existsByName(normalizedName);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("available", !isDuplicated);
+            response.put("groupName", normalizedName);
+
+            log.info("그룹 이름 중복 체크 결과: groupName={}, available={}",
+                    normalizedName, !isDuplicated);
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    response,
+                    isDuplicated ? "group_name_duplicated" : "group_name_available",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.warn("그룹 이름 형식 오류: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        }
     }
 
     /**
