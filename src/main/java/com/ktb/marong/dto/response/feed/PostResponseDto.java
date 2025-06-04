@@ -46,10 +46,14 @@ public class PostResponseDto {
                 .build();
     }
 
-    public static PostResponseDto fromEntityWithRealTimeManitteeName(Post post, int likesCount, boolean isLiked, String realTimeManitteeName) {
+    /**
+     * 작성자 이름까지 커스터마이징 가능한 DTO 생성 메소드
+     */
+    public static PostResponseDto fromEntityWithRealTimeManitteeNameAndAuthor(Post post, int likesCount, boolean isLiked,
+                                                                              String realTimeManitteeName, String customAuthorName) {
         return PostResponseDto.builder()
                 .feedId(post.getId())
-                .author(post.getAnonymousSnapshotName())
+                .author(customAuthorName) // 커스터마이징된 작성자 이름 사용
                 .missionTitle(post.getMission().getTitle())
                 .manitteeName(realTimeManitteeName) // 실시간으로 결정된 마니띠 이름 사용
                 .content(post.getContent())

@@ -28,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -232,7 +234,11 @@ public class FeedService {
         // 3. 특정 그룹의 게시글만 조회
         Page<Post> postPage = postRepository.findAllByGroupIdOrderByCreatedAtDesc(groupId, pageable);
 
-        // 4. DTO 변환
+        // 4. 현재 주차 및 마니또 공개 시점 확인
+        int currentWeek = WeekCalculator.getCurrentWeek();
+        boolean isManittoRevealTime = isManittoRevealTime();
+
+        // 5. DTO 변환
         List<PostResponseDto> postDtos = postPage.getContent().stream()
                 .map(post -> {
                     int likeCount = postLikeRepository.countByPostId(post.getId());
@@ -244,15 +250,18 @@ public class FeedService {
                     // 실시간 마니띠 이름 결정
                     String realTimeManitteeName = determineManitteeNameForPost(post, groupId);
 
-                    return PostResponseDto.fromEntityWithRealTimeManitteeName(
-                            post, likeCount, isLiked, realTimeManitteeName);
+                    // 게시글 작성자 이름 결정
+                    String authorName = determineAuthorNameForPost(post, groupId, currentWeek, isManittoRevealTime);
+
+                    return PostResponseDto.fromEntityWithRealTimeManitteeNameAndAuthor(
+                            post, likeCount, isLiked, realTimeManitteeName, authorName);
                 })
                 .collect(Collectors.toList());
 
         log.info("게시글 목록 조회 완료: groupId={}, groupName={}, totalElements={}",
                 groupId, group.getName(), postPage.getTotalElements());
 
-        // 5. 그룹 정보 포함하여 응답 생성
+        // 6. 그룹 정보 포함하여 응답 생성
         return PostPageResponseDto.builder()
                 .page(page)
                 .pageSize(pageSize)
@@ -261,6 +270,94 @@ public class FeedService {
                 .groupName(group.getName())
                 .feeds(postDtos)
                 .build();
+    }
+
+    /**
+     * 게시글 작성자 이름 결정
+     * 규칙:
+     * 1. 현재 주차 게시글 + 마니또 공개 시점 이전 = 익명 이름만
+     * 2. 현재 주차 게시글 + 마니또 공개 시점 이후 = "그룹닉네임 (익명이름)" 형태
+     * 3. 지난 주차 게시글 = 항상 "그룹닉네임 (익명이름)" 형태 (해당 주차 공개 시점 이후)
+     */
+    private String determineAuthorNameForPost(Post post, Long groupId, int currentWeek, boolean isManittoRevealTime) {
+        try {
+            int postWeek = post.getWeek();
+            String anonymousName = post.getAnonymousSnapshotName();
+
+            // 케이스 1: 현재 주차 게시글이면서 마니또 공개 시점 이전
+            if (postWeek == currentWeek && !isManittoRevealTime) {
+                log.debug("현재 주차 비공개 시점 게시글: postId={}, week={}, 익명이름만 표시",
+                        post.getId(), postWeek);
+                return anonymousName;
+            }
+
+            // 케이스 2: 현재 주차 게시글이면서 마니또 공개 시점 이후
+            // 케이스 3: 지난 주차 게시글 (이미 해당 주차의 공개 시점이 지남)
+            if ((postWeek == currentWeek && isManittoRevealTime) || postWeek < currentWeek) {
+                // 게시글 작성자의 그룹 내 정보 조회
+                User postAuthor = post.getUser();
+                UserGroup authorUserGroup = userGroupRepository.findByUserIdAndGroupId(
+                        postAuthor.getId(), groupId).orElse(null);
+
+                String displayName;
+                if (authorUserGroup != null && authorUserGroup.hasGroupUserNickname()) {
+                    // 그룹 내 닉네임이 있는 경우
+                    displayName = authorUserGroup.getGroupUserNickname();
+                    log.debug("그룹 내 닉네임 사용: userId={}, groupNickname={}",
+                            postAuthor.getId(), displayName);
+                } else {
+                    // 그룹 내 닉네임이 없는 경우 카카오 실명 사용
+                    displayName = postAuthor.getNickname();
+                    log.debug("카카오 실명 사용: userId={}, kakaoName={}",
+                            postAuthor.getId(), displayName);
+                }
+
+                // "그룹닉네임 (익명이름)" 또는 "카카오실명 (익명이름)" 형태로 반환
+                String finalAuthorName = displayName + " (" + anonymousName + ")";
+
+                String caseDescription = (postWeek == currentWeek) ? "현재 주차 공개 시점" : "지난 주차";
+                log.debug("{} 게시글 작성자 이름 변경: postId={}, week={}, originalName={}, newName={}",
+                        caseDescription, post.getId(), postWeek, anonymousName, finalAuthorName);
+
+                return finalAuthorName;
+            }
+
+            // 케이스 4: 미래 주차 게시글 (일반적으로 발생하지 않아야 함)
+            log.warn("미래 주차 게시글 발견: postId={}, postWeek={}, currentWeek={}",
+                    post.getId(), postWeek, currentWeek);
+            return anonymousName;
+
+        } catch (Exception e) {
+            log.warn("게시글 작성자 이름 결정 실패, 기존 이름 사용: postId={}, error={}",
+                    post.getId(), e.getMessage());
+            // 오류 발생시 기존 익명 이름 사용
+            return post.getAnonymousSnapshotName();
+        }
+    }
+
+    /**
+     * 현재 시간이 마니또 공개 시점인지 확인
+     * 마니또 공개 시점: 금요일 오후 5시 이후 ~ 다음 주 월요일 오후 12시 이전
+     */
+    private boolean isManittoRevealTime() {
+        LocalDateTime now = LocalDateTime.now();
+        DayOfWeek dayOfWeek = now.getDayOfWeek();
+        int hour = now.getHour();
+
+        // 금요일 17시 이후인 경우
+        if (dayOfWeek == DayOfWeek.FRIDAY && hour >= 17) {
+            return true;
+        }
+        // 토요일, 일요일인 경우
+        else if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+            return true;
+        }
+        // 월요일 12시 이전인 경우
+        else if (dayOfWeek == DayOfWeek.MONDAY && hour < 12) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
