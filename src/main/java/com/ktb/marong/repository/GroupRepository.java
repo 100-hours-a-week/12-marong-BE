@@ -37,4 +37,9 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
      */
     @Query("SELECT g FROM Group g ORDER BY g.id DESC")
     Page<Group> findAllOrderByIdDesc(Pageable pageable);
+
+    /**
+     * 정규화된 그룹 이름으로 중복 확인
+     */
+    boolean existsByNormalizedName(String normalizedName);
 }

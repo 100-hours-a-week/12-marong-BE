@@ -60,8 +60,9 @@ public class GroupService {
         GroupValidator.validateGroupName(requestDto.getGroupName());
         GroupValidator.validateGroupDescription(requestDto.getDescription());
 
-        // 그룹 이름 및 설명 정규화
-        String normalizedGroupName = GroupValidator.normalizeGroupName(requestDto.getGroupName());
+        // 그룹 이름 정규화 (중복체크용과 표시용 분리)
+        String normalizedGroupNameForCheck = GroupValidator.normalizeGroupName(requestDto.getGroupName()); // 중복체크용 (공백제거, 소문자)
+        String normalizedGroupNameForDisplay = GroupValidator.normalizeGroupNameForDisplay(requestDto.getGroupName()); // 저장용 (공백유지)
         String normalizedDescription = GroupValidator.normalizeGroupDescription(requestDto.getDescription());
 
         // 그룹 개수 제한 체크
@@ -75,8 +76,8 @@ public class GroupService {
         GroupNicknameValidator.validateNicknameFormat(requestDto.getGroupUserNickname());
         String normalizedNickname = GroupNicknameValidator.normalizeNickname(requestDto.getGroupUserNickname());
 
-        // 그룹 이름 중복 체크
-        if (groupRepository.existsByName(normalizedGroupName)) {
+        // 그룹 이름 중복 체크 (정규화된 이름으로 체크)
+        if (groupRepository.existsByNormalizedName(normalizedGroupNameForCheck)) {
             throw new CustomException(ErrorCode.GROUP_NAME_DUPLICATED);
         }
 
@@ -91,9 +92,9 @@ public class GroupService {
         // 사용자 프로필 이미지 업로드 처리
         String userProfileImageUrl = uploadUserProfileImage(groupUserProfileImage);
 
-        // 그룹 생성
+        // 그룹 생성 (표시용 이름으로 저장, 정규화된 이름은 엔티티에서 자동 생성)
         Group group = Group.builder()
-                .name(normalizedGroupName)
+                .name(normalizedGroupNameForDisplay) // 공백이 유지된 표시용 이름
                 .description(normalizedDescription)
                 .inviteCode(normalizedInviteCode)
                 .imageUrl(groupImageUrl)
@@ -112,12 +113,13 @@ public class GroupService {
 
         userGroupRepository.save(userGroup);
 
-        log.info("그룹 생성 완료: groupId={}, groupName={}, inviteCode={}, nickname={}",
-                savedGroup.getId(), normalizedGroupName, normalizedInviteCode, normalizedNickname);
+        log.info("그룹 생성 완료: groupId={}, displayName={}, normalizedName={}, inviteCode={}, nickname={}",
+                savedGroup.getId(), normalizedGroupNameForDisplay, normalizedGroupNameForCheck,
+                normalizedInviteCode, normalizedNickname);
 
         return CreateGroupResponseDto.builder()
                 .groupId(savedGroup.getId())
-                .groupName(savedGroup.getName())
+                .groupName(savedGroup.getName()) // 표시용 이름 반환
                 .inviteCode(normalizedInviteCode)
                 .build();
     }

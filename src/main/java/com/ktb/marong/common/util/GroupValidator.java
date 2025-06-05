@@ -43,9 +43,20 @@ public class GroupValidator {
     }
 
     /**
-     * 그룹 이름 정규화 (앞뒤 공백 제거, 연속 공백 하나로 압축)
+     * 그룹 이름 정규화 - 중복체크용 (모든 공백 제거 후 소문자 변환)
      */
     public static String normalizeGroupName(String groupName) {
+        if (groupName == null) {
+            return null;
+        }
+        // 모든 공백 제거 후 소문자로 변환하여 중복 체크용 문자열 생성
+        return groupName.trim().replaceAll("\\s+", "").toLowerCase();
+    }
+
+    /**
+     * 그룹 이름 정규화 - 표시용 (앞뒤 공백 제거, 연속 공백 하나로 압축)
+     */
+    public static String normalizeGroupNameForDisplay(String groupName) {
         if (groupName == null) {
             return null;
         }
