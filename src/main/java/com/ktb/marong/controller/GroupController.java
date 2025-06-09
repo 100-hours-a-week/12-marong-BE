@@ -188,6 +188,13 @@ public class GroupController {
         log.info("닉네임 중복 체크 요청: userId={}, groupId={}, nickname={}", userId, groupId, nickname);
 
         try {
+            // 먼저 그룹 존재 여부 확인
+            if (!groupRepository.existsById(groupId)) {
+                log.warn("존재하지 않는 그룹: groupId={}", groupId);
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+            }
+
             // 닉네임 형식 검증
             GroupNicknameValidator.validateNicknameFormat(nickname);
             String normalizedNickname = GroupNicknameValidator.normalizeNickname(nickname);
@@ -238,6 +245,13 @@ public class GroupController {
         log.info("그룹 내 사용 중인 닉네임 목록 조회: userId={}, groupId={}", userId, groupId);
 
         try {
+            // 먼저 그룹 존재 여부 확인
+            if (!groupRepository.existsById(groupId)) {
+                log.warn("존재하지 않는 그룹: groupId={}", groupId);
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+            }
+
             List<String> usedNicknames = groupService.getUsedNicknames(groupId);
 
             Map<String, Object> response = new HashMap<>();
@@ -268,6 +282,13 @@ public class GroupController {
         log.info("그룹 내 닉네임 설정 여부 확인 요청: userId={}, groupId={}", userId, groupId);
 
         try {
+            // 먼저 그룹 존재 여부 확인
+            if (!groupRepository.existsById(groupId)) {
+                log.warn("존재하지 않는 그룹: groupId={}", groupId);
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+            }
+
             boolean hasNickname = groupService.hasGroupNickname(userId, groupId);
 
             Map<String, Object> response = new HashMap<>();

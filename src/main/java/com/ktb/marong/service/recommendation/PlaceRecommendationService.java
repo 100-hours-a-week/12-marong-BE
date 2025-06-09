@@ -1,6 +1,7 @@
 package com.ktb.marong.service.recommendation;
 
 import com.ktb.marong.common.util.WeekCalculator;
+import com.ktb.marong.domain.group.Group;
 import com.ktb.marong.domain.manitto.Manitto;
 import com.ktb.marong.domain.recommendation.PlaceRecommendation;
 import com.ktb.marong.domain.recommendation.PlaceRecommendationSession;
@@ -8,11 +9,7 @@ import com.ktb.marong.domain.user.User;
 import com.ktb.marong.dto.response.recommendation.PlaceRecommendationResponseDto;
 import com.ktb.marong.exception.CustomException;
 import com.ktb.marong.exception.ErrorCode;
-import com.ktb.marong.repository.ManittoRepository;
-import com.ktb.marong.repository.PlaceRecommendationRepository;
-import com.ktb.marong.repository.PlaceRecommendationSessionRepository;
-import com.ktb.marong.repository.UserGroupRepository;
-import com.ktb.marong.repository.UserRepository;
+import com.ktb.marong.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +29,7 @@ public class PlaceRecommendationService {
     private final ManittoRepository manittoRepository;
     private final PlaceRecommendationSessionRepository sessionRepository;
     private final PlaceRecommendationRepository placeRepository;
+    private final GroupRepository groupRepository;
 
     /**
      * 장소 추천 조회 (밥집 & 카페) - 그룹별 분리
@@ -44,17 +42,21 @@ public class PlaceRecommendationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        // 2. 그룹 존재 여부 확인 (추가)
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 3. 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND,
                     "해당 그룹에 속하지 않은 사용자입니다.");
         }
 
-        // 3. 현재 주차 계산
+        // 4. 현재 주차 계산
         int currentWeek = WeekCalculator.getCurrentWeek();
         log.info("현재 주차: {}", currentWeek);
 
-        // 4. 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹별)
+        // 5. 현재 주차에 해당하는 마니또 매칭 정보 조회 (그룹별)
         List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
         if (manittoList.isEmpty()) {
@@ -63,13 +65,13 @@ public class PlaceRecommendationService {
                     String.format("해당 그룹(ID: %d)에서 마니또 매칭 정보가 없어 장소 추천을 제공할 수 없습니다.", groupId));
         }
 
-        // 5. 매칭된 마니또 정보
+        // 6. 매칭된 마니또 정보
         Manitto manitto = manittoList.get(0);
         Long manitteeId = manitto.getManittee().getId();
         log.info("마니또 매칭 정보: manittoId={}, manitteeId={}, groupId={}, week={}",
                 userId, manitteeId, groupId, currentWeek);
 
-        // 6. 장소 추천 세션 조회 - 마니또-마니띠 쌍으로 조회
+        // 7. 장소 추천 세션 조회 - 마니또-마니띠 쌍으로 조회
         List<PlaceRecommendationSession> sessions = sessionRepository.findByManittoIdAndManitteeIdAndWeek(
                 userId, manitteeId, currentWeek);
 
@@ -80,21 +82,21 @@ public class PlaceRecommendationService {
                             userId, manitteeId, currentWeek));
         }
 
-        // 7. 현재 세션
+        // 8. 현재 세션
         PlaceRecommendationSession session = sessions.get(0);
         log.info("장소 추천 세션 정보: sessionId={}, manittoId={}, manitteeId={}, week={}",
                 session.getId(), session.getManitto().getId(), session.getManittee().getId(), currentWeek);
 
-        // 8. 레스토랑 목록 조회 및 DTO 변환
+        // 9. 레스토랑 목록 조회 및 DTO 변환
         List<PlaceRecommendationResponseDto.PlaceDto> restaurants = getRandomPlaces(session.getId(), "restaurant");
 
-        // 9. 카페 목록 조회 및 DTO 변환
+        // 10. 카페 목록 조회 및 DTO 변환
         List<PlaceRecommendationResponseDto.PlaceDto> cafes = getRandomPlaces(session.getId(), "cafe");
 
         log.info("장소 추천 조회 완료: userId={}, groupId={}, sessionId={}, restaurants={}, cafes={}",
                 userId, groupId, session.getId(), restaurants.size(), cafes.size());
 
-        // 10. 응답 생성
+        // 11. 응답 생성
         return PlaceRecommendationResponseDto.builder()
                 .restaurants(restaurants)
                 .cafes(cafes)

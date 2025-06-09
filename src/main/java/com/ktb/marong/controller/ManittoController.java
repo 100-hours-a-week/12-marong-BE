@@ -7,6 +7,7 @@ import com.ktb.marong.dto.response.manitto.ManittoInfoResponseDto;
 import com.ktb.marong.dto.response.manitto.MissionStatusResponseDto;
 import com.ktb.marong.dto.response.mission.TodayMissionResponseDto;
 import com.ktb.marong.exception.CustomException;
+import com.ktb.marong.repository.GroupRepository;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.manitto.ManittoService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class ManittoController {
 
     private final ManittoService manittoService;
+    private final GroupRepository groupRepository;
 
     /**
      * 마니또 상세 정보 조회 (그룹별, 시간대별)
@@ -34,6 +36,13 @@ public class ManittoController {
             @RequestParam Long groupId) {
 
         log.info("마니또 상세 정보 요청: userId={}, groupId={}", userId, groupId);
+
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
 
         try {
             ManittoDetailResponseDto response = manittoService.getCurrentManittoDetail(userId, groupId);
@@ -109,6 +118,13 @@ public class ManittoController {
                     .body(ApiResponse.error("INVALID_GROUP_ID", "유효하지 않은 그룹 ID입니다."));
         }
 
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
+
         try {
             MissionStatusResponseDto response = manittoService.getMissionStatus(userId, groupId);
 
@@ -172,6 +188,13 @@ public class ManittoController {
 
         log.info("새 미션 할당 요청: userId={}, groupId={}", userId, targetGroupId);
 
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(targetGroupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", targetGroupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
+
         try {
             UserMission newMission = manittoService.assignNewMission(userId, targetGroupId);
 
@@ -209,6 +232,13 @@ public class ManittoController {
             @RequestParam Long groupId) {
 
         log.info("오늘 할당된 미션 조회: userId={}, groupId={}", userId, groupId);
+
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
 
         try {
             TodayMissionResponseDto response = manittoService.getTodayAssignedMission(userId, groupId);
@@ -252,6 +282,13 @@ public class ManittoController {
             log.warn("잘못된 groupId: userId={}, groupId={}", userId, groupId);
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("INVALID_GROUP_ID", "유효하지 않은 그룹 ID입니다."));
+        }
+
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
         }
 
         try {

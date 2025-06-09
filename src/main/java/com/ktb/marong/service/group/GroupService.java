@@ -220,6 +220,11 @@ public class GroupService {
         log.info("그룹 프로필 업데이트: userId={}, groupId={}, nickname={}",
                 userId, groupId, requestDto.getGroupUserNickname());
 
+        // 먼저 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND);
+        }
+
         // 사용자-그룹 관계 조회
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
@@ -253,14 +258,16 @@ public class GroupService {
     public GroupDetailResponseDto getGroupDetail(Long userId, Long groupId) {
         log.info("그룹 상세 정보 조회: userId={}, groupId={}", userId, groupId);
 
+        // 먼저 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
         // 사용자가 해당 그룹에 속해있는지 확인
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
 
         // 현재 멤버 수 조회
         int currentMemberCount = userGroupRepository.countByGroupId(groupId);
-
-        Group group = userGroup.getGroup();
 
         // 응답 생성
         GroupDetailResponseDto response = GroupDetailResponseDto.builder()

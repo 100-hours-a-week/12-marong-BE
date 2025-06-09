@@ -44,6 +44,7 @@ public class ManittoService {
     private final PostRepository postRepository;
     private final AnonymousNameRepository anonymousNameRepository;
     private final UserGroupRepository userGroupRepository;
+    private final GroupRepository groupRepository;
 
     /**
      * 현재 사용자의 마니또-마니띠 상세 정보 조회 (그룹별, 시간대별)
@@ -57,13 +58,15 @@ public class ManittoService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        // 2. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 3. 사용자가 해당 그룹에 속해있는지 확인
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다."));
 
-        Group group = userGroup.getGroup();
-
-        // 3. 현재 주차 및 시간 정보
+        // 4. 현재 주차 및 시간 정보
         int currentWeek = WeekCalculator.getCurrentWeek();
         String remainingTime = calculateRemainingTimeUntilReveal();
         String currentPeriod = getCurrentPeriod();
@@ -72,7 +75,7 @@ public class ManittoService {
         log.info("현재 시간 정보: currentWeek={}, period={}, remainingTime={}, isNewUser={}",
                 currentWeek, currentPeriod, remainingTime, isNewUser);
 
-        // 4. 시간대에 따른 분기 처리
+        // 5. 시간대에 따른 분기 처리
         if ("MANITTO_REVEAL".equals(currentPeriod)) {
             // 마니또 공개 기간 (금요일 17시 ~ 월요일 12시)
             return buildRevealPeriodResponse(userId, groupId, group, currentWeek, remainingTime, isNewUser);
@@ -361,20 +364,24 @@ public class ManittoService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        // 2. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 3. 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND,
                     "해당 그룹에 속하지 않은 사용자입니다.");
         }
 
-        // 3. 현재 주차 및 날짜 정보
+        // 4. 현재 주차 및 날짜 정보
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
         log.info("미션 상태 조회 정보: userId={}, groupId={}, currentWeek={}, today={}",
                 userId, groupId, currentWeek, today);
 
-        // 4. 해당 그룹에서 마니또 매칭이 되어 있는지 확인
+        // 5. 해당 그룹에서 마니또 매칭이 되어 있는지 확인
         List<Manitto> manittoMatchings = manittoRepository.findByManittoIdAndGroupIdAndWeek(
                 userId, groupId, currentWeek);
 
@@ -384,25 +391,25 @@ public class ManittoService {
                     String.format("해당 그룹(ID: %d)에서 마니또 매칭 정보가 없습니다.", groupId));
         }
 
-        // 5. 만료된 미션들을 미완료 상태로 처리 (해당 그룹만)
+        // 6. 만료된 미션들을 미완료 상태로 처리 (해당 그룹만)
         handleExpiredMissionsForGroup(userId, groupId, today, currentWeek);
 
-        // 6. 해당 그룹의 현재 주차 사용자 미션들만 조회
+        // 7. 해당 그룹의 현재 주차 사용자 미션들만 조회
         List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(
                 userId, groupId, currentWeek);
 
         log.info("조회된 그룹별 사용자 미션 개수: userId={}, groupId={}, week={}, count={}",
                 userId, groupId, currentWeek, userMissions.size());
 
-        // 7. 미션 상태별 분류 및 처리
+        // 8. 미션 상태별 분류 및 처리
         MissionClassificationResult classificationResult = classifyAndUpdateMissions(
                 userId, groupId, currentWeek, today, userMissions);
 
-        // 8. 새 미션 할당 필요성 체크 (그룹별)
+        // 9. 새 미션 할당 필요성 체크 (그룹별)
         checkNewMissionAssignmentNeed(userId, groupId, currentWeek,
                 classificationResult.getInProgressMissions(), userMissions.size());
 
-        // 9. DTO 변환
+        // 10. DTO 변환
         List<MissionStatusResponseDto.MissionDto> inProgressMissionDtos =
                 classificationResult.getInProgressMissions().stream()
                         .map(this::convertToMissionDto)
@@ -418,7 +425,7 @@ public class ManittoService {
                         .map(this::convertToMissionDto)
                         .collect(Collectors.toList());
 
-        // 10. 진행률 계산
+        // 11. 진행률 계산
         int total = userMissions.size();
         int completed = classificationResult.getCompletedMissions().size();
         int incomplete = classificationResult.getIncompleteMissions().size();
@@ -625,6 +632,10 @@ public class ManittoService {
     public Map<String, Object> getGroupMissionStatistics(Long userId, Long groupId) {
         log.info("그룹별 미션 통계 조회: userId={}, groupId={}", userId, groupId);
 
+        // 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
         // 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
@@ -698,7 +709,11 @@ public class ManittoService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 사용자가 해당 그룹에 속해있는지 확인
+        // 1. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 2. 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
         }
@@ -706,33 +721,33 @@ public class ManittoService {
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
-        // 현재 주차의 이전 미션들을 미완료 상태로 변경
+        // 3. 현재 주차의 이전 미션들을 미완료 상태로 변경
         handleExpiredMissionsForGroup(userId, groupId, today, currentWeek);
 
-        // 오늘 이미 할당된 미션이 있는지 확인 (상태와 관계없이)
+        // 4. 오늘 이미 할당된 미션이 있는지 확인 (상태와 관계없이)
         List<UserMission> todaysMissions = userMissionRepository.findAllMissionsAssignedOnDate(userId, groupId, today, currentWeek);
         if (!todaysMissions.isEmpty()) {
             throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED, "하루에 한 개의 미션만 수행할 수 있습니다.");
         }
 
-        // 현재 주차에 해당하는 마니또 매칭 정보 조회
+        // 5. 현재 주차에 해당하는 마니또 매칭 정보 조회
         List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
-        // 마니또 매칭 정보가 없는 경우 예외 발생
+        // 6. 마니또 매칭 정보가 없는 경우 예외 발생
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND, "마니또 매칭 정보가 없어 미션을 할당할 수 없습니다.");
         }
 
-        // 현재 주차의 모든 미션 조회 (중복 방지용)
+        // 7. 현재 주차의 모든 미션 조회 (중복 방지용)
         List<UserMission> userMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, groupId, currentWeek);
 
-        // 할당 가능한 미션 찾기 (그룹별로 독립적)
+        // 8. 할당 가능한 미션 찾기 (그룹별로 독립적)
         Mission mission = getAvailableMissionForGroup(userId, groupId, userMissions);
         if (mission == null) {
             throw new CustomException(ErrorCode.MISSION_NOT_FOUND, "할당 가능한 미션이 없습니다.");
         }
 
-        // 미션 생성 및 저장
+        // 9. 미션 생성 및 저장
         UserMission userMission = UserMission.builder()
                 .user(user)
                 .groupId(groupId)
@@ -765,11 +780,15 @@ public class ManittoService {
     public TodayMissionResponseDto getTodayAssignedMission(Long userId, Long groupId) {
         log.info("오늘 할당된 미션 조회: userId={}, groupId={}", userId, groupId);
 
-        // 사용자 조회
+        // 1. 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 사용자가 해당 그룹에 속해있는지 확인
+        // 2. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 3. 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
         }
@@ -777,7 +796,7 @@ public class ManittoService {
         int currentWeek = WeekCalculator.getCurrentWeek();
         LocalDate today = LocalDate.now();
 
-        // 오늘 할당된 미션 조회 (상태와 관계없이)
+        // 4. 오늘 할당된 미션 조회 (상태와 관계없이)
         List<UserMission> todaysMissions = userMissionRepository.findAllMissionsAssignedOnDate(
                 userId, groupId, today, currentWeek);
 
@@ -786,10 +805,10 @@ public class ManittoService {
             return null; // 204 No Content 응답을 위해 null 반환
         }
 
-        // 첫 번째 미션 반환 (하루에 1개만 할당되므로)
+        // 5. 첫 번째 미션 반환 (하루에 1개만 할당되므로)
         UserMission todaysMission = todaysMissions.get(0);
 
-        // 게시글 작성 여부 확인하여 상태 업데이트
+        // 6. 게시글 작성 여부 확인하여 상태 업데이트
         int postCount = postRepository.countByUserIdAndMissionIdAndWeekAndGroupId(
                 userId, todaysMission.getMission().getId(), currentWeek, groupId);
 

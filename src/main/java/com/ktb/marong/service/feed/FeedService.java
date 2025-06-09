@@ -49,6 +49,7 @@ public class FeedService {
     private final UserMissionRepository userMissionRepository;
     private final ManittoRepository manittoRepository;
     private final UserGroupRepository userGroupRepository;
+    private final GroupRepository groupRepository;
     private final FileUploadService fileUploadService;
 
     /**
@@ -62,36 +63,40 @@ public class FeedService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        // 2. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 3. 사용자가 해당 그룹에 속해있는지 확인
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
                         "해당 그룹에 속하지 않은 사용자입니다."));
 
-        // 3. 그룹 내 닉네임 설정 여부 확인
+        // 4. 그룹 내 닉네임 설정 여부 확인
         if (!userGroup.hasGroupUserNickname()) {
             throw new CustomException(ErrorCode.GROUP_NICKNAME_REQUIRED,
                     "그룹 내 닉네임을 먼저 설정해주세요.");
         }
 
-        // 4. 미션 조회
+        // 5. 미션 조회
         Mission mission = missionRepository.findById(requestDto.getMissionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND));
 
-        // 5. 현재 주차 계산
+        // 6. 현재 주차 계산
         int currentWeek = WeekCalculator.getCurrentWeek();
 
-        // 6. 미션이 현재 사용자에게 해당 그룹에서 할당된 것인지 확인
+        // 7. 미션이 현재 사용자에게 해당 그룹에서 할당된 것인지 확인
         UserMission userMission = userMissionRepository.findByUserIdAndGroupIdAndMissionIdAndWeek(
                         userId, groupId, requestDto.getMissionId(), currentWeek)
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_ASSIGNED,
                         "해당 그룹에서 할당되지 않은 미션입니다."));
 
-        // 7. 미션 상태가 진행 중인지 확인
+        // 8. 미션 상태가 진행 중인지 확인
         if (!"ing".equals(userMission.getStatus())) {
             throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이미 완료된 미션입니다.");
         }
 
-        // 8. 해당 미션을 현재 주차에 이미 수행했는지 확인
+        // 9. 해당 미션을 현재 주차에 이미 수행했는지 확인
         int postCount = postRepository.countByUserIdAndMissionIdAndWeekAndGroupId(
                 userId, requestDto.getMissionId(), currentWeek, groupId);
 
@@ -100,7 +105,7 @@ public class FeedService {
                     "이번 주차에 해당 그룹에서 이미 해당 미션을 완료했습니다.");
         }
 
-        // 9. 현재 사용자가 해당 그룹에서 마니또인지 확인 및 마니띠 정보 조회
+        // 10. 현재 사용자가 해당 그룹에서 마니또인지 확인 및 마니띠 정보 조회
         List<Manitto> manittoList = manittoRepository.findByManittoIdAndGroupIdAndWeek(userId, groupId, currentWeek);
         if (manittoList.isEmpty()) {
             throw new CustomException(ErrorCode.MANITTO_NOT_FOUND,
@@ -126,12 +131,12 @@ public class FeedService {
                     manitteeUser.getId(), manitteeName);
         }
 
-        // 10. 익명 이름 조회 (그룹별 익명 이름)
+        // 11. 익명 이름 조회 (그룹별 익명 이름)
         String anonymousName = anonymousNameRepository.findAnonymousNameByUserIdAndGroupIdAndWeek(
                         userId, groupId, currentWeek)
                 .orElse("익명의 " + getRandomAnimal()); // 없으면 기본 이름 생성
 
-        // 11. 이미지 업로드 처리
+        // 12. 이미지 업로드 처리
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
             try {
@@ -142,7 +147,7 @@ public class FeedService {
             }
         }
 
-        // 12. 게시글 생성
+        // 13. 게시글 생성
         Post post = Post.builder()
                 .user(user)
                 .groupId(groupId)
@@ -154,10 +159,10 @@ public class FeedService {
                 .imageUrl(imageUrl)
                 .build();
 
-        // 13. 게시글 저장
+        // 14. 게시글 저장
         Post savedPost = postRepository.save(post);
 
-        // 14. 미션 완료 상태 업데이트
+        // 15. 미션 완료 상태 업데이트
         updateMissionStatus(userId, groupId, mission.getId(), currentWeek);
 
         log.info("게시글 저장 완료: postId={}, userId={}, groupId={}, manitteeName={}",
@@ -221,12 +226,14 @@ public class FeedService {
     public PostPageResponseDto getPosts(Long userId, Long groupId, int page, int pageSize) {
         log.info("게시글 목록 조회: userId={}, groupId={}, page={}", userId, groupId, page);
 
-        // 1. 사용자가 해당 그룹에 속해있는지 확인하고 그룹 정보도 함께 조회
+        // 1. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 2. 사용자가 해당 그룹에 속해있는지 확인하고 그룹 정보도 함께 조회
         UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
                         "해당 그룹에 속하지 않은 사용자입니다."));
-
-        Group group = userGroup.getGroup(); // 그룹 정보 조회
 
         // 2. 페이지네이션 설정
         Pageable pageable = PageRequest.of(page - 1, pageSize);
@@ -443,29 +450,33 @@ public class FeedService {
             return emptyStats;
         }
 
-        // 1. 사용자가 해당 그룹에 속해있는지 확인
+        // 1. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 2. 사용자가 해당 그룹에 속해있는지 확인
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, groupId)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND,
                     "해당 그룹에 속하지 않은 사용자입니다.");
         }
 
-        // 2. 현재 주차 정보
+        // 3. 현재 주차 정보
         int currentWeek = WeekCalculator.getCurrentWeek();
 
-        // 3. 그룹 내 전체 게시글 수
+        // 4. 그룹 내 전체 게시글 수
         Page<Post> allPosts = postRepository.findAllByGroupIdOrderByCreatedAtDesc(
                 groupId, PageRequest.of(0, 1));
         long totalPosts = allPosts.getTotalElements();
 
-        // 4. 현재 주차 게시글 수
+        // 5. 현재 주차 게시글 수
         Page<Post> weeklyPosts = postRepository.findAllByGroupIdAndWeekOrderByCreatedAtDesc(
                 groupId, currentWeek, PageRequest.of(0, 1));
         long weeklyPostCount = weeklyPosts.getTotalElements();
 
-        // 5. 그룹 멤버 수
+        // 6. 그룹 멤버 수
         int memberCount = userGroupRepository.countByGroupId(groupId);
 
-        // 6. 내가 작성한 게시글 수 (해당 그룹에서)
+        // 7. 내가 작성한 게시글 수 (해당 그룹에서)
         long myPostsCount = postRepository.findAllByGroupIdOrderByCreatedAtDesc(groupId, PageRequest.of(0, Integer.MAX_VALUE))
                 .getContent()
                 .stream()
