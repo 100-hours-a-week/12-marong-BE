@@ -28,6 +28,11 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     boolean existsByName(String name);
 
     /**
+     * 정규화된 그룹 이름으로 중복 확인
+     */
+    boolean existsByNormalizedName(String normalizedName);
+
+    /**
      * 초대 코드 중복 확인
      */
     boolean existsByInviteCode(String inviteCode);

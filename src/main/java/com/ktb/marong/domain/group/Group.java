@@ -17,7 +17,10 @@ public class Group {
     private Long id;
 
     @Column(nullable = false)
-    private String name;
+    private String name; // 표시용 이름 (공백 유지)
+
+    @Column(name = "normalized_name", nullable = false)
+    private String normalizedName; // 중복체크용 이름 (공백 제거, 소문자)
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -31,6 +34,7 @@ public class Group {
     @Builder
     public Group(String name, String description, String inviteCode, String imageUrl) {
         this.name = name;
+        this.normalizedName = name.trim().replaceAll("\\s+", "").toLowerCase(); // 자동 정규화
         this.description = description;
         this.inviteCode = inviteCode;
         this.imageUrl = imageUrl;

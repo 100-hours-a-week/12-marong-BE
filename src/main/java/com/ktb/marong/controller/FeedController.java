@@ -1,10 +1,12 @@
 package com.ktb.marong.controller;
 
+import com.ktb.marong.common.util.WeekCalculator;
 import com.ktb.marong.dto.request.feed.PostLikeRequestDto;
 import com.ktb.marong.dto.request.feed.PostRequestDto;
 import com.ktb.marong.dto.response.common.ApiResponse;
 import com.ktb.marong.dto.response.feed.PostLikeResponseDto;
 import com.ktb.marong.dto.response.feed.PostPageResponseDto;
+import com.ktb.marong.repository.GroupRepository;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.feed.FeedService;
 import jakarta.validation.Valid;
@@ -27,6 +29,7 @@ import java.util.Map;
 public class FeedController {
 
     private final FeedService feedService;
+    private final GroupRepository groupRepository;
 
     /**
      * 게시글 업로드 (그룹별 분리)
@@ -40,6 +43,13 @@ public class FeedController {
             @RequestParam(value = "image", required = false) MultipartFile image) {
 
         log.info("게시글 업로드 요청: userId={}, groupId={}, missionId={}", userId, groupId, missionId);
+
+        // 먼저 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
 
         PostRequestDto requestDto = new PostRequestDto(missionId, content);
         Long feedId = feedService.savePost(userId, groupId, requestDto, image);
@@ -107,6 +117,13 @@ public class FeedController {
             ));
         }
 
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
+
         PostPageResponseDto response = feedService.getPosts(userId, groupId, page, pageSize);
 
         return ResponseEntity.ok(ApiResponse.success(
@@ -159,6 +176,30 @@ public class FeedController {
             @RequestParam(value = "groupId", required = false) Long groupId) {
 
         log.info("피드 통계 조회 요청: userId={}, groupId={}", userId, groupId);
+
+        // 신규 사용자인 경우 (groupId가 null)
+        if (groupId == null) {
+            log.info("신규 사용자 피드 통계 요청: userId={}", userId);
+            Map<String, Object> emptyStats = new HashMap<>();
+            emptyStats.put("totalPosts", 0);
+            emptyStats.put("weeklyPosts", 0);
+            emptyStats.put("memberCount", 0);
+            emptyStats.put("myPosts", 0);
+            emptyStats.put("currentWeek", WeekCalculator.getCurrentWeek());
+            emptyStats.put("isNewUser", true);
+            return ResponseEntity.ok(ApiResponse.success(
+                    emptyStats,
+                    "new_user_feed_stats",
+                    null
+            ));
+        }
+
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            log.warn("존재하지 않는 그룹: groupId={}", groupId);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+        }
 
         Map<String, Object> stats = feedService.getFeedStats(userId, groupId);
 

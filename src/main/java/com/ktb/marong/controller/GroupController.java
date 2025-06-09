@@ -1,12 +1,14 @@
 package com.ktb.marong.controller;
 
 import com.ktb.marong.common.util.GroupNicknameValidator;
+import com.ktb.marong.common.util.GroupValidator;
 import com.ktb.marong.dto.request.group.CreateGroupRequestDto;
 import com.ktb.marong.dto.request.group.JoinGroupRequestDto;
 import com.ktb.marong.dto.request.group.UpdateGroupProfileRequestDto;
 import com.ktb.marong.dto.response.common.ApiResponse;
 import com.ktb.marong.dto.response.group.*;
 import com.ktb.marong.exception.CustomException;
+import com.ktb.marong.repository.GroupRepository;
 import com.ktb.marong.repository.UserGroupRepository;
 import com.ktb.marong.security.CurrentUser;
 import com.ktb.marong.service.group.GroupService;
@@ -31,6 +33,7 @@ public class GroupController {
 
     private final GroupService groupService;
     private final UserGroupRepository userGroupRepository;
+    private final GroupRepository groupRepository;
 
     /**
      * 그룹 생성
@@ -140,6 +143,40 @@ public class GroupController {
     }
 
     /**
+     * 그룹 이름 중복 체크 API
+     */
+    @GetMapping("/name/check")
+    public ResponseEntity<?> checkGroupName(@RequestParam String groupName) {
+        log.info("그룹 이름 중복 체크 요청: groupName={}", groupName);
+
+        try {
+            // 그룹 이름 형식 검증
+            GroupValidator.validateGroupName(groupName);
+            String normalizedName = GroupValidator.normalizeGroupName(groupName);
+
+            boolean isDuplicated = groupRepository.existsByNormalizedName(normalizedName);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("available", !isDuplicated);
+            response.put("groupName", normalizedName);
+
+            log.info("그룹 이름 중복 체크 결과: groupName={}, available={}",
+                    normalizedName, !isDuplicated);
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    response,
+                    isDuplicated ? "group_name_duplicated" : "group_name_available",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.warn("그룹 이름 형식 오류: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        }
+    }
+
+    /**
      * 그룹 내 닉네임 중복 체크 API
      */
     @GetMapping("/{groupId}/nickname/check")
@@ -151,6 +188,13 @@ public class GroupController {
         log.info("닉네임 중복 체크 요청: userId={}, groupId={}, nickname={}", userId, groupId, nickname);
 
         try {
+            // 먼저 그룹 존재 여부 확인
+            if (!groupRepository.existsById(groupId)) {
+                log.warn("존재하지 않는 그룹: groupId={}", groupId);
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+            }
+
             // 닉네임 형식 검증
             GroupNicknameValidator.validateNicknameFormat(nickname);
             String normalizedNickname = GroupNicknameValidator.normalizeNickname(nickname);
@@ -201,6 +245,13 @@ public class GroupController {
         log.info("그룹 내 사용 중인 닉네임 목록 조회: userId={}, groupId={}", userId, groupId);
 
         try {
+            // 먼저 그룹 존재 여부 확인
+            if (!groupRepository.existsById(groupId)) {
+                log.warn("존재하지 않는 그룹: groupId={}", groupId);
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+            }
+
             List<String> usedNicknames = groupService.getUsedNicknames(groupId);
 
             Map<String, Object> response = new HashMap<>();
@@ -231,6 +282,13 @@ public class GroupController {
         log.info("그룹 내 닉네임 설정 여부 확인 요청: userId={}, groupId={}", userId, groupId);
 
         try {
+            // 먼저 그룹 존재 여부 확인
+            if (!groupRepository.existsById(groupId)) {
+                log.warn("존재하지 않는 그룹: groupId={}", groupId);
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("GROUP_NOT_FOUND", "존재하지 않는 그룹입니다."));
+            }
+
             boolean hasNickname = groupService.hasGroupNickname(userId, groupId);
 
             Map<String, Object> response = new HashMap<>();
