@@ -54,7 +54,21 @@ public class UserGroup {
     }
 
     /**
-     * 그룹 내 사용자 프로필 정보 업데이트
+     * 그룹 내 사용자 프로필 이미지만 업데이트
+     */
+    public void updateGroupUserProfileImage(String groupUserProfileImageUrl) {
+        this.groupUserProfileImageUrl = groupUserProfileImageUrl;
+    }
+
+    /**
+     * 그룹 내 사용자 닉네임만 업데이트
+     */
+    public void updateGroupUserNickname(String groupUserNickname) {
+        this.groupUserNickname = groupUserNickname;
+    }
+
+    /**
+     * 그룹 내 사용자 프로필 정보 전체 업데이트
      */
     public void updateGroupUserProfile(String groupUserNickname, String groupUserProfileImageUrl) {
         this.groupUserNickname = groupUserNickname;

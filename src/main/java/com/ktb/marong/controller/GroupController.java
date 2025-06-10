@@ -105,25 +105,126 @@ public class GroupController {
 
     /**
      * 그룹 프로필 정보 업데이트
+     * 닉네임과 프로필 이미지를 개별적으로 또는 함께 수정 가능
      */
-    @PutMapping(value = "/{groupId}/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> updateGroupProfile(
+    @PutMapping("/{groupId}/profile")
+    public ResponseEntity<?> updateUserGroupProfile(
             @CurrentUser Long userId,
             @PathVariable Long groupId,
-            @RequestParam("groupUserNickname") String groupUserNickname,
-            @RequestParam(value = "groupUserProfileImage", required = false) MultipartFile groupUserProfileImage) {
+            @RequestParam(required = false) String groupUserNickname,
+            @RequestParam(required = false) MultipartFile groupUserProfileImage) {
 
-        log.info("그룹 프로필 업데이트 요청: userId={}, groupId={}", userId, groupId);
+        log.info("그룹 프로필 수정 요청: userId={}, groupId={}, nickname={}, hasImage={}",
+                userId, groupId, groupUserNickname, groupUserProfileImage != null);
 
-        UpdateGroupProfileRequestDto requestDto = new UpdateGroupProfileRequestDto(groupUserNickname);
+        try {
+            // 요청 파라미터 검증
+            if (groupUserNickname == null && groupUserProfileImage == null) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "수정할 정보를 입력해주세요."));
+            }
 
-        groupService.updateGroupProfile(userId, groupId, requestDto, groupUserProfileImage);
+            // 닉네임만 수정하는 경우
+            if (groupUserNickname != null && groupUserProfileImage == null) {
+                UpdateGroupProfileRequestDto requestDto =
+                        new UpdateGroupProfileRequestDto(groupUserNickname);
+                groupService.updateGroupProfile(userId, groupId, requestDto, null);
+            }
+            // 프로필 이미지만 수정하는 경우
+            else if (groupUserNickname == null && groupUserProfileImage != null) {
+                groupService.updateGroupProfileImage(userId, groupId, groupUserProfileImage);
+            }
+            // 닉네임과 프로필 이미지 모두 수정하는 경우
+            else {
+                UpdateGroupProfileRequestDto requestDto =
+                        new UpdateGroupProfileRequestDto(groupUserNickname);
+                groupService.updateGroupProfile(userId, groupId, requestDto, groupUserProfileImage);
+            }
 
-        return ResponseEntity.ok(ApiResponse.success(
-                null,
-                "group_profile_updated",
-                null
-        ));
+            // 수정 완료 후 업데이트된 프로필 정보 반환
+            UserGroupProfileResponseDto updatedProfile =
+                    groupService.getUserGroupProfile(userId, groupId);
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    updatedProfile,
+                    "group_profile_updated",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.warn("그룹 프로필 수정 실패: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        } catch (Exception e) {
+            log.error("그룹 프로필 수정 중 서버 오류: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
+        }
+    }
+
+    /**
+     * 사용자가 속해있는 모든 그룹별 프로필 정보 한번에 조회
+     */
+    @GetMapping("/profiles")
+    public ResponseEntity<?> getAllGroupProfiles(@CurrentUser Long userId) {
+        log.info("사용자 모든 그룹 프로필 조회 요청: userId={}", userId);
+
+        try {
+            List<UserGroupProfileResponseDto> profiles = groupService.getAllUserGroupProfiles(userId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("profiles", profiles);
+            response.put("totalCount", profiles.size());
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    response,
+                    "user_group_profiles_retrieved",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.warn("그룹 프로필 조회 실패: userId={}, error={}", userId, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        } catch (Exception e) {
+            log.error("그룹 프로필 조회 중 서버 오류: userId={}, error={}", userId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
+        }
+    }
+
+    /**
+     * 특정 그룹에서의 사용자 프로필 정보 조회
+     */
+    @GetMapping("/{groupId}/profile")
+    public ResponseEntity<?> getUserGroupProfile(
+            @CurrentUser Long userId,
+            @PathVariable Long groupId) {
+
+        log.info("특정 그룹 프로필 조회 요청: userId={}, groupId={}", userId, groupId);
+
+        try {
+            UserGroupProfileResponseDto profile = groupService.getUserGroupProfile(userId, groupId);
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    profile,
+                    "user_group_profile_retrieved",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.warn("그룹 프로필 조회 실패: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        } catch (Exception e) {
+            log.error("그룹 프로필 조회 중 서버 오류: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
+        }
     }
 
     /**
