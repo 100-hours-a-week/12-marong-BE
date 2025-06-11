@@ -44,7 +44,7 @@ public class GroupNicknameValidator {
     }
 
     /**
-     * 닉네임 정규화 (앞뒤 공백 제거, 연속 공백 하나로 압축)
+     * 닉네임 정규화 - 표시용 (앞뒤 공백 제거, 연속 공백 하나로 압축)
      */
     public static String normalizeNickname(String nickname) {
         if (nickname == null) {
@@ -53,5 +53,16 @@ public class GroupNicknameValidator {
 
         // 앞뒤 공백 제거 및 연속된 공백을 하나로 압축
         return nickname.trim().replaceAll("\\s+", " ");
+    }
+
+    /**
+     * 닉네임 정규화 - 중복체크용 (모든 공백 제거 후 소문자 변환)
+     */
+    public static String normalizeNicknameForDuplication(String nickname) {
+        if (nickname == null) {
+            return null;
+        }
+        // 모든 공백 제거 후 소문자로 변환하여 중복 체크용 문자열 생성
+        return nickname.trim().replaceAll("\\s+", "").toLowerCase();
     }
 }

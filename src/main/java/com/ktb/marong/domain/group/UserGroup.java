@@ -1,25 +1,29 @@
 package com.ktb.marong.domain.group;
 
+import com.ktb.marong.common.util.GroupNicknameValidator;
 import com.ktb.marong.domain.user.User;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "UserGroups", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_user_group", columnNames = {"user_id", "group_id"})
-})
+@Table(name = "user_groups")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class UserGroup {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_group_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -30,28 +34,23 @@ public class UserGroup {
     @JoinColumn(name = "group_id", nullable = false)
     private Group group;
 
-    @Column(name = "group_user_nickname")
+    @Column(name = "group_user_nickname", length = 100)
     private String groupUserNickname;
+
+    // 중복체크용 정규화된 닉네임 (공백제거 + 소문자)
+    @Column(name = "normalized_nickname", length = 100)
+    private String normalizedNickname;
 
     @Column(name = "group_user_profile_image_url")
     private String groupUserProfileImageUrl;
 
-    @CreationTimestamp
-    @Column(name = "joined_at")
-    private LocalDateTime joinedAt;
-
-    @Column(name = "is_owner")
+    @Column(name = "is_owner", nullable = false)
+    @Builder.Default
     private Boolean isOwner = false;
 
-    @Builder
-    public UserGroup(User user, Group group, String groupUserNickname,
-                     String groupUserProfileImageUrl, Boolean isOwner) {
-        this.user = user;
-        this.group = group;
-        this.groupUserNickname = groupUserNickname;
-        this.groupUserProfileImageUrl = groupUserProfileImageUrl;
-        this.isOwner = isOwner != null ? isOwner : false;
-    }
+    @CreatedDate
+    @Column(name = "joined_at", nullable = false, updatable = false)
+    private LocalDateTime joinedAt;
 
     /**
      * 그룹 내 사용자 프로필 이미지만 업데이트
@@ -65,6 +64,8 @@ public class UserGroup {
      */
     public void updateGroupUserNickname(String groupUserNickname) {
         this.groupUserNickname = groupUserNickname;
+        // 닉네임 변경 시 정규화된 닉네임도 함께 업데이트
+        this.normalizedNickname = GroupNicknameValidator.normalizeNicknameForDuplication(groupUserNickname);
     }
 
     /**
@@ -73,12 +74,29 @@ public class UserGroup {
     public void updateGroupUserProfile(String groupUserNickname, String groupUserProfileImageUrl) {
         this.groupUserNickname = groupUserNickname;
         this.groupUserProfileImageUrl = groupUserProfileImageUrl;
+        // 닉네임 변경 시 정규화된 닉네임도 함께 업데이트
+        this.normalizedNickname = GroupNicknameValidator.normalizeNicknameForDuplication(groupUserNickname);
     }
 
     /**
-     * 그룹 내 사용자 닉네임이 설정되어 있는지 확인
+     * 그룹 내 닉네임 설정 여부 확인
      */
     public boolean hasGroupUserNickname() {
         return this.groupUserNickname != null && !this.groupUserNickname.trim().isEmpty();
+    }
+
+    /**
+     * 엔티티가 저장되기 전에 정규화된 닉네임을 설정
+     */
+    @PrePersist
+    @PreUpdate
+    private void setNormalizedNickname() {
+        if (this.groupUserNickname != null) {
+            this.normalizedNickname = GroupNicknameValidator.normalizeNicknameForDuplication(this.groupUserNickname);
+        }
+        // joined_at이 null인 경우 현재 시간으로 설정 (CreatedDate 백업)
+        if (this.joinedAt == null) {
+            this.joinedAt = LocalDateTime.now();
+        }
     }
 }

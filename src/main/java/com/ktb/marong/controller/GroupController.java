@@ -305,13 +305,11 @@ public class GroupController {
 
             boolean isDuplicated;
             if (hasExistingNickname) {
-                // 기존 닉네임이 있는 경우 자신 제외하고 중복 체크
-                isDuplicated = userGroupRepository.existsByGroupIdAndGroupUserNicknameExcludingUser(
-                        groupId, normalizedNickname, userId);
+                // 기존 닉네임이 있는 경우 자신 제외하고 정규화된 닉네임으로 중복 체크
+                isDuplicated = groupService.checkNicknameDuplicationForApi(groupId, normalizedNickname, userId);
             } else {
-                // 첫 닉네임 설정인 경우 전체 중복 체크
-                isDuplicated = userGroupRepository.existsByGroupIdAndGroupUserNickname(
-                        groupId, normalizedNickname);
+                // 첫 닉네임 설정인 경우 정규화된 닉네임으로 전체 중복 체크
+                isDuplicated = groupService.checkNicknameDuplicationForApi(groupId, normalizedNickname, null);
             }
 
             Map<String, Object> response = new HashMap<>();
@@ -319,8 +317,8 @@ public class GroupController {
             response.put("nickname", normalizedNickname);
             response.put("isFirstTime", !hasExistingNickname);
 
-            log.info("닉네임 중복 체크 결과: groupId={}, nickname={}, available={}, isFirstTime={}",
-                    groupId, normalizedNickname, !isDuplicated, !hasExistingNickname);
+            log.info("닉네임 중복 체크 결과: groupId={}, originalNickname={}, normalizedNickname={}, available={}, isFirstTime={}",
+                    groupId, nickname, normalizedNickname, !isDuplicated, !hasExistingNickname);
 
             return ResponseEntity.ok(ApiResponse.success(
                     response,
@@ -329,9 +327,15 @@ public class GroupController {
             ));
 
         } catch (CustomException e) {
-            log.warn("닉네임 형식 오류: {}", e.getMessage());
+            log.warn("닉네임 형식 오류: userId={}, groupId={}, nickname={}, error={}",
+                    userId, groupId, nickname, e.getMessage());
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        } catch (Exception e) {
+            log.error("닉네임 중복 체크 중 서버 오류: userId={}, groupId={}, nickname={}, error={}",
+                    userId, groupId, nickname, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
         }
     }
 

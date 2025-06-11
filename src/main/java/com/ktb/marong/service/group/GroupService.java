@@ -396,21 +396,42 @@ public class GroupService {
      * 그룹 내 닉네임 중복 체크
      */
     private void checkNicknameDuplication(Long groupId, String nickname, Long excludeUserId) {
+        // 입력된 닉네임을 중복체크용으로 정규화
+        String normalizedForCheck = GroupNicknameValidator.normalizeNicknameForDuplication(nickname);
+
         boolean isDuplicated;
 
         if (excludeUserId != null) {
             // 특정 사용자 제외하고 중복 체크 (프로필 수정 시)
-            isDuplicated = userGroupRepository.existsByGroupIdAndGroupUserNicknameExcludingUser(
-                    groupId, nickname, excludeUserId);
+            isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
+                    groupId, normalizedForCheck, excludeUserId);
         } else {
             // 전체 중복 체크 (신규 가입 시)
-            isDuplicated = userGroupRepository.existsByGroupIdAndGroupUserNickname(groupId, nickname);
+            isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
         }
 
         if (isDuplicated) {
-            log.warn("그룹 내 닉네임 중복: groupId={}, nickname={}, excludeUserId={}",
-                    groupId, nickname, excludeUserId);
+            log.warn("그룹 내 닉네임 중복: groupId={}, originalNickname={}, normalizedNickname={}, excludeUserId={}",
+                    groupId, nickname, normalizedForCheck, excludeUserId);
             throw new CustomException(ErrorCode.NICKNAME_DUPLICATED_IN_GROUP);
+        }
+    }
+
+    /**
+     * 그룹 내 닉네임 중복 체크 API용 메서드
+     */
+    @Transactional(readOnly = true)
+    public boolean checkNicknameDuplicationForApi(Long groupId, String nickname, Long excludeUserId) {
+        // 입력된 닉네임을 중복체크용으로 정규화
+        String normalizedForCheck = GroupNicknameValidator.normalizeNicknameForDuplication(nickname);
+
+        if (excludeUserId != null) {
+            // 특정 사용자 제외하고 중복 체크 (프로필 수정 시)
+            return userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
+                    groupId, normalizedForCheck, excludeUserId);
+        } else {
+            // 전체 중복 체크 (신규 가입 시)
+            return userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
         }
     }
 

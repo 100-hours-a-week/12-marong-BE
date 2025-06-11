@@ -51,11 +51,46 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
     @Query("SELECT ug FROM UserGroup ug JOIN FETCH ug.group WHERE ug.user.id = :userId AND ug.isOwner = true")
     List<UserGroup> findOwnedGroupsByUserId(@Param("userId") Long userId);
 
-    // 닉네임 중복 체크 관련 메서드
+    // 닉네임 중복 체크 관련 메서드 (정규화된 닉네임 기준)
 
     /**
-     * 특정 그룹 내에서 닉네임 중복 여부 확인 (null 제외)
+     * 특정 그룹 내에서 정규화된 닉네임 중복 여부 확인 (null 제외)
      */
+    @Query("SELECT CASE WHEN COUNT(ug) > 0 THEN true ELSE false END " +
+            "FROM UserGroup ug " +
+            "WHERE ug.group.id = :groupId " +
+            "AND ug.normalizedNickname = :normalizedNickname " +
+            "AND ug.normalizedNickname IS NOT NULL")
+    boolean existsByGroupIdAndNormalizedNickname(@Param("groupId") Long groupId, @Param("normalizedNickname") String normalizedNickname);
+
+    /**
+     * 특정 그룹 내에서 정규화된 닉네임 중복 여부 확인 (자신 제외, null 제외)
+     */
+    @Query("SELECT CASE WHEN COUNT(ug) > 0 THEN true ELSE false END " +
+            "FROM UserGroup ug " +
+            "WHERE ug.group.id = :groupId " +
+            "AND ug.normalizedNickname = :normalizedNickname " +
+            "AND ug.normalizedNickname IS NOT NULL " +
+            "AND ug.user.id != :userId")
+    boolean existsByGroupIdAndNormalizedNicknameExcludingUser(
+            @Param("groupId") Long groupId,
+            @Param("normalizedNickname") String normalizedNickname,
+            @Param("userId") Long userId);
+
+    /**
+     * 특정 그룹의 모든 닉네임 목록 조회 (표시용 닉네임 반환, null 제외)
+     */
+    @Query("SELECT ug.groupUserNickname FROM UserGroup ug " +
+            "WHERE ug.group.id = :groupId " +
+            "AND ug.groupUserNickname IS NOT NULL")
+    List<String> findAllNicknamesByGroupId(@Param("groupId") Long groupId);
+
+    // 기존 메서드들은 MVP 호환성을 위해 유지 (deprecated)
+
+    /**
+     * @deprecated 정규화된 닉네임 기준 중복체크를 사용해야 함 (existsByGroupIdAndNormalizedNickname)
+     */
+    @Deprecated
     @Query("SELECT CASE WHEN COUNT(ug) > 0 THEN true ELSE false END " +
             "FROM UserGroup ug " +
             "WHERE ug.group.id = :groupId " +
@@ -64,8 +99,9 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
     boolean existsByGroupIdAndGroupUserNickname(@Param("groupId") Long groupId, @Param("nickname") String nickname);
 
     /**
-     * 특정 그룹 내에서 닉네임 중복 여부 확인 (자신 제외, null 제외)
+     * @deprecated 정규화된 닉네임 기준 중복체크를 사용해야 함 (existsByGroupIdAndNormalizedNicknameExcludingUser)
      */
+    @Deprecated
     @Query("SELECT CASE WHEN COUNT(ug) > 0 THEN true ELSE false END " +
             "FROM UserGroup ug " +
             "WHERE ug.group.id = :groupId " +
@@ -76,12 +112,4 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
             @Param("groupId") Long groupId,
             @Param("nickname") String nickname,
             @Param("userId") Long userId);
-
-    /**
-     * 특정 그룹의 모든 닉네임 목록 조회 (중복 체크용, null 제외)
-     */
-    @Query("SELECT ug.groupUserNickname FROM UserGroup ug " +
-            "WHERE ug.group.id = :groupId " +
-            "AND ug.groupUserNickname IS NOT NULL")
-    List<String> findAllNicknamesByGroupId(@Param("groupId") Long groupId);
 }
