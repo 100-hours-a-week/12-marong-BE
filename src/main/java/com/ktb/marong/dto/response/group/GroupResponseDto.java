@@ -1,5 +1,7 @@
 package com.ktb.marong.dto.response.group;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ktb.marong.domain.group.UserGroup;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,8 +22,12 @@ public class GroupResponseDto {
     private int memberCount;
     private String myNickname;
     private String myProfileImageUrl;
+    @JsonIgnore
     private boolean isOwner;
     private LocalDateTime joinedAt;
+
+    @JsonProperty("isOwner")
+    public boolean isOwner() { return isOwner; }
 
     public static GroupResponseDto fromUserGroup(UserGroup userGroup, int memberCount) {
         return GroupResponseDto.builder()

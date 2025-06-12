@@ -1,5 +1,6 @@
 package com.ktb.marong.dto.response.group;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -13,18 +14,18 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GroupDetailResponseDto {
+public class UserGroupProfileResponseDto {
+
     private Long groupId;
     private String groupName;
-    private String description;
     private String groupImageUrl;
-    private String inviteCode;
-    private int currentMemberCount;
-    private int maxMemberCount;
+    private int memberCount;
     private String myNickname;
     private String myProfileImageUrl;
     @JsonIgnore
     private boolean isOwner;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime joinedAt;
 
     @JsonProperty("isOwner")

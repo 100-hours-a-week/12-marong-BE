@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -252,6 +253,108 @@ public class GroupService {
     }
 
     /**
+     * 그룹 내 사용자 프로필 이미지만 업데이트
+     */
+    @Transactional
+    public void updateGroupProfileImage(Long userId, Long groupId, MultipartFile groupUserProfileImage) {
+        log.info("그룹 프로필 이미지 업데이트: userId={}, groupId={}", userId, groupId);
+
+        // 그룹 존재 여부 확인
+        if (!groupRepository.existsById(groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND);
+        }
+
+        // 사용자-그룹 관계 조회
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 프로필 이미지 업로드
+        String newProfileImageUrl = null;
+        if (groupUserProfileImage != null && !groupUserProfileImage.isEmpty()) {
+            newProfileImageUrl = uploadUserProfileImage(groupUserProfileImage);
+        }
+
+        // 프로필 이미지만 업데이트
+        userGroup.updateGroupUserProfileImage(newProfileImageUrl);
+        userGroupRepository.save(userGroup);
+
+        log.info("그룹 프로필 이미지 업데이트 완료: userId={}, groupId={}", userId, groupId);
+    }
+
+    /**
+     * 사용자가 속해있는 모든 그룹별 프로필 정보 한번에 조회
+     */
+    @Transactional(readOnly = true)
+    public List<UserGroupProfileResponseDto> getAllUserGroupProfiles(Long userId) {
+        log.info("사용자 모든 그룹 프로필 조회: userId={}", userId);
+
+        // 사용자 존재 여부 확인
+        if (!userRepository.existsById(userId)) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        // 사용자가 속한 모든 그룹 조회
+        List<UserGroup> userGroups = userGroupRepository.findByUserIdWithGroup(userId);
+
+        if (userGroups.isEmpty()) {
+            log.info("사용자가 속한 그룹이 없음: userId={}", userId);
+            return new ArrayList<>();
+        }
+
+        // 각 그룹별 프로필 정보를 매핑하여 반환
+        return userGroups.stream()
+                .map(userGroup -> {
+                    Group group = userGroup.getGroup();
+                    int memberCount = userGroupRepository.countByGroupId(group.getId());
+
+                    return UserGroupProfileResponseDto.builder()
+                            .groupId(group.getId())
+                            .groupName(group.getName())
+                            .groupImageUrl(group.getImageUrl())
+                            .memberCount(memberCount)
+                            .myNickname(userGroup.getGroupUserNickname())
+                            .myProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
+                            .isOwner(userGroup.getIsOwner())
+                            .joinedAt(userGroup.getJoinedAt())
+                            .build();
+                })
+                .sorted((p1, p2) -> p2.getJoinedAt().compareTo(p1.getJoinedAt())) // 최근 가입 순 정렬
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 특정 그룹에서의 사용자 프로필 정보 조회
+     */
+    @Transactional(readOnly = true)
+    public UserGroupProfileResponseDto getUserGroupProfile(Long userId, Long groupId) {
+        log.info("특정 그룹 프로필 조회: userId={}, groupId={}", userId, groupId);
+
+        // 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인 및 프로필 정보 조회
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 그룹 멤버 수 조회
+        int memberCount = userGroupRepository.countByGroupId(groupId);
+
+        return UserGroupProfileResponseDto.builder()
+                .groupId(group.getId())
+                .groupName(group.getName())
+                .groupImageUrl(group.getImageUrl())
+                .memberCount(memberCount)
+                .myNickname(userGroup.getGroupUserNickname())
+                .myProfileImageUrl(userGroup.getGroupUserProfileImageUrl())
+                .isOwner(userGroup.getIsOwner())
+                .joinedAt(userGroup.getJoinedAt())
+                .build();
+    }
+
+    /**
      * 특정 그룹 상세 정보 조회 (멤버 수 제한 정보 포함)
      */
     @Transactional(readOnly = true)
@@ -293,21 +396,42 @@ public class GroupService {
      * 그룹 내 닉네임 중복 체크
      */
     private void checkNicknameDuplication(Long groupId, String nickname, Long excludeUserId) {
+        // 입력된 닉네임을 중복체크용으로 정규화
+        String normalizedForCheck = GroupNicknameValidator.normalizeNicknameForDuplication(nickname);
+
         boolean isDuplicated;
 
         if (excludeUserId != null) {
             // 특정 사용자 제외하고 중복 체크 (프로필 수정 시)
-            isDuplicated = userGroupRepository.existsByGroupIdAndGroupUserNicknameExcludingUser(
-                    groupId, nickname, excludeUserId);
+            isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
+                    groupId, normalizedForCheck, excludeUserId);
         } else {
             // 전체 중복 체크 (신규 가입 시)
-            isDuplicated = userGroupRepository.existsByGroupIdAndGroupUserNickname(groupId, nickname);
+            isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
         }
 
         if (isDuplicated) {
-            log.warn("그룹 내 닉네임 중복: groupId={}, nickname={}, excludeUserId={}",
-                    groupId, nickname, excludeUserId);
+            log.warn("그룹 내 닉네임 중복: groupId={}, originalNickname={}, normalizedNickname={}, excludeUserId={}",
+                    groupId, nickname, normalizedForCheck, excludeUserId);
             throw new CustomException(ErrorCode.NICKNAME_DUPLICATED_IN_GROUP);
+        }
+    }
+
+    /**
+     * 그룹 내 닉네임 중복 체크 API용 메서드
+     */
+    @Transactional(readOnly = true)
+    public boolean checkNicknameDuplicationForApi(Long groupId, String nickname, Long excludeUserId) {
+        // 입력된 닉네임을 중복체크용으로 정규화
+        String normalizedForCheck = GroupNicknameValidator.normalizeNicknameForDuplication(nickname);
+
+        if (excludeUserId != null) {
+            // 특정 사용자 제외하고 중복 체크 (프로필 수정 시)
+            return userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
+                    groupId, normalizedForCheck, excludeUserId);
+        } else {
+            // 전체 중복 체크 (신규 가입 시)
+            return userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
         }
     }
 
