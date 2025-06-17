@@ -61,10 +61,10 @@ jobs:
             --tunnel-through-iap \
             --command="
               gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
-              docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
-              docker stop backend || true &&
-              docker rm backend || true &&
-              docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+              sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+              sudo docker stop backend || true &&
+              sudo docker rm backend || true &&
+              sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
             "
 
       - name: Deploy to Compute Engine VM via IAP C zone
@@ -75,8 +75,8 @@ jobs:
             --tunnel-through-iap \
             --command="
               gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
-              docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
-              docker stop backend || true &&
-              docker rm backend || true &&
-              docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+              sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+              sudo docker stop backend || true &&
+              sudo docker rm backend || true &&
+              sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
             "
