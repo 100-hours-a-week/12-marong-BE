@@ -1,0 +1,82 @@
+name: CI/CD Develop
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    permissions :
+      id-token : write
+      contents : read
+      pull-requests : write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Properies Files based on Branch
+        run: |
+          cat <<EOF > ./src/main/resources/application.properties
+          ${{ secrets.APPLICATION }}
+          EOF
+          cat <<EOF > ./src/main/resources/application-local.properties
+          ${{ secrets.APPLICATION_LOCAL }}
+          EOF
+          cat <<EOF > ./src/main/resources/application-prod.properties
+          ${{ secrets.APPLICATION_PROD }}
+          EOF
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_ID }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK (gcloud CLI)
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use Artifact Registry
+        run: gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+
+      - name: Build and push Docker image to Artifact Registry
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+
+      - name: Deploy to Compute Engine VM via IAP A zone
+        run: |
+          gcloud compute ssh backend-a \
+            --zone=asia-northeast3-a \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --tunnel-through-iap \
+            --command="
+              gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
+              sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+              sudo docker stop backend || true &&
+              sudo docker rm backend || true &&
+              sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+            "
+
+      - name: Deploy to Compute Engine VM via IAP C zone
+        run: |
+          gcloud compute ssh backend-c \
+            --zone=asia-northeast3-c \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --tunnel-through-iap \
+            --command="
+              gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
+              sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+              sudo docker stop backend || true &&
+              sudo docker rm backend || true &&
+              sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+            "

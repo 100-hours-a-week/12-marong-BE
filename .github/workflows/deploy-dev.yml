@@ -1,0 +1,84 @@
+name: CI/CD Develop
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    permissions :
+      id-token : write
+      contents : read
+      pull-requests : write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Properies Files based on Branch
+        run: |
+          cat <<EOF > ./src/main/resources/application.properties
+          ${{ secrets.APPLICATION }}
+          EOF
+          cat <<EOF > ./src/main/resources/application-local.properties
+          ${{ secrets.APPLICATION_LOCAL }}
+          EOF
+          cat <<EOF > ./src/main/resources/application-prod.properties
+          ${{ secrets.APPLICATION_PROD }}
+          EOF
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_ID }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK (gcloud CLI)
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use Artifact Registry
+        run: gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+
+      - name: Build and push Docker image to Artifact Registry
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop
+
+      - name: Deploy to Compute Engine VM
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "Stopping and removing existing containers..."
+            docker stop backend || true
+            docker rm backend || true
+
+            echo "Authenticating to Artifact Registry..."
+            gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+
+            echo "Pulling latest Docker image..."
+            docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop
+
+            echo "Create Docker Network..."
+            docker network create marong
+
+            echo "Starting new container..."
+            docker run -d \
+              --add-host=host.docker.internal:host-gateway \
+              --name backend \
+              --network marong \
+              ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop
+
+            echo "Deployment to Compute Engine VM completed."
+            
