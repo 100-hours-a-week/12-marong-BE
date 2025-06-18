@@ -55,32 +55,34 @@ jobs:
 
       - name: Deploy to Compute Engine VM via IAP A zone
         run: |
-          gcloud compute ssh ${{ secrets.VM_USER }}@backend-a \
+          gcloud compute ssh backend-a \
             --zone=asia-northeast3-a \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --command='
               echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > gcp-sa.json &&
               gcloud auth activate-service-account --key-file=gcp-sa.json &&
-              gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
-              sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
-              sudo docker stop backend || true &&
-              sudo docker rm backend || true &&
-              sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+              ACCESS_TOKEN=$(gcloud auth print-access-token) &&
+              echo "$ACCESS_TOKEN" | sudo -u ${{ secrets.VM_USER }} docker login -u oauth2accesstoken --password-stdin asia-northeast3-docker.pkg.dev &&
+              sudo -u ${{ secrets.VM_USER }} docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+              sudo -u ${{ secrets.VM_USER }} docker stop backend || true &&
+              sudo -u ${{ secrets.VM_USER }} docker rm backend || true &&
+              sudo -u ${{ secrets.VM_USER }} docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
             '
 
       - name: Deploy to Compute Engine VM via IAP C zone
         run: |
-          gcloud compute ssh ${{ secrets.VM_USER }}@backend-c \
+          gcloud compute ssh backend-c \
             --zone=asia-northeast3-c \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --command="
               echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > gcp-sa.json &&
               gcloud auth activate-service-account --key-file=gcp-sa.json &&
-              gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
-              sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
-              sudo docker stop backend || true &&
-              sudo docker rm backend || true &&
-              sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+              ACCESS_TOKEN=$(gcloud auth print-access-token) &&
+              echo "$ACCESS_TOKEN" | sudo -u ${{ secrets.VM_USER }} docker login -u oauth2accesstoken --password-stdin asia-northeast3-docker.pkg.dev &&
+              sudo -u ${{ secrets.VM_USER }} docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+              sudo -u ${{ secrets.VM_USER }} docker stop backend || true &&
+              sudo -u ${{ secrets.VM_USER }} docker rm backend || true &&
+              sudo -u ${{ secrets.VM_USER }} docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
             "
