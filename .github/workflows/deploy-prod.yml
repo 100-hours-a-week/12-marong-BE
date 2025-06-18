@@ -55,7 +55,7 @@ jobs:
 
       - name: Deploy to Compute Engine VM via IAP A zone
         run: |
-          gcloud compute ssh backend-a \
+          gcloud compute ssh ${{ secrets.VM_USER }}@backend-a \
             --zone=asia-northeast3-a \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
@@ -71,7 +71,7 @@ jobs:
 
       - name: Deploy to Compute Engine VM via IAP C zone
         run: |
-          gcloud compute ssh backend-c \
+          gcloud compute ssh ${{ secrets.VM_USER }}@backend-c \
             --zone=asia-northeast3-c \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
