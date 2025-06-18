@@ -60,7 +60,7 @@ jobs:
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --command='
-              echo "${{ secrets.GCP_SA_KEY }}" > gcp-sa.json &&
+              echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > gcp-sa.json &&
               gcloud auth activate-service-account --key-file=gcp-sa.json &&
               gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
               sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
@@ -76,6 +76,8 @@ jobs:
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --command="
+              echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > gcp-sa.json &&
+              gcloud auth activate-service-account --key-file=gcp-sa.json &&
               gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
               sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
               sudo docker stop backend || true &&
