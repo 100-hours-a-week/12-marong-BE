@@ -59,14 +59,15 @@ jobs:
             --zone=asia-northeast3-a \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
-            --command="
+            --command='
               echo "${{ secrets.GCP_SA_KEY }}" > gcp-sa.json &&
+              gcloud auth activate-service-account --key-file=gcp-sa.json &&
               gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
               sudo docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
               sudo docker stop backend || true &&
               sudo docker rm backend || true &&
               sudo docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
-            "
+            '
 
       - name: Deploy to Compute Engine VM via IAP C zone
         run: |
