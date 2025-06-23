@@ -13,7 +13,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_groups")
+@Table(name = "UserGroups")
 @Getter
 @Builder
 @NoArgsConstructor
@@ -23,7 +23,6 @@ public class UserGroup {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_group_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
