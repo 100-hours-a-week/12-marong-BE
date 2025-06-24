@@ -67,7 +67,7 @@ jobs:
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
                 docker stop backend || true &&
                 docker rm backend || true &&
-                docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+                docker run -d --name backend -e TZ=Asia/Seoul -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
               "
             '
 
@@ -85,6 +85,6 @@ jobs:
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
                 docker stop backend || true &&
                 docker rm backend || true &&
-                docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+                docker run -d --name backend -e TZ=Asia/Seoul -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
               "
             '
