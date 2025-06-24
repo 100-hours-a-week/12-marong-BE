@@ -63,6 +63,7 @@ jobs:
               sudo -u ${{ secrets.VM_USER }} bash -c "
                 echo \"${{ secrets.GCP_SA_KEY }}\" | base64 -d > /home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth activate-service-account --key-file=/home/${{ secrets.VM_USER }}/gcp-sa.json &&
+                gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
                 echo "docker pull" &&
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
                 echo "docker stop" &&
@@ -82,6 +83,7 @@ jobs:
               sudo -u ${{ secrets.VM_USER }} bash -c "
                 echo \"${{ secrets.GCP_SA_KEY }}\" | base64 -d > /home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth activate-service-account --key-file=/home/${{ secrets.VM_USER }}/gcp-sa.json &&
+                gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
                 echo "docker pull" &&
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
                 echo "docker stop" &&
