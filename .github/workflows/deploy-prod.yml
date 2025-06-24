@@ -64,7 +64,9 @@ jobs:
                 echo \"${{ secrets.GCP_SA_KEY }}\" | base64 -d > /home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth activate-service-account --key-file=/home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
+                echo "docker pull" &&
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+                echo "docker stop" &&
                 docker stop backend || true &&
                 docker rm backend || true &&
                 docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
@@ -82,7 +84,9 @@ jobs:
                 echo \"${{ secrets.GCP_SA_KEY }}\" | base64 -d > /home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth activate-service-account --key-file=/home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
+                echo "docker pull" &&
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+                echo "docker stop" &&
                 docker stop backend || true &&
                 docker rm backend || true &&
                 docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
