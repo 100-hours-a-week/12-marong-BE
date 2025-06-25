@@ -8,6 +8,7 @@ import com.ktb.marong.repository.UserRepository;
 import com.ktb.marong.service.auth.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,7 @@ import java.util.Map;
  * 로컬 환경에서 테스트를 위한 API 제공
  */
 @Slf4j
+@Profile("local")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/test")
