@@ -131,9 +131,14 @@ public class ManittoService {
                         .findAnonymousNameByUserIdAndGroupIdAndWeek(manittoUser.getId(), groupId, currentWeek)
                         .orElse("익명의 마니또");
 
+                // 그룹 닉네임이 없으면 카톡 실명으로 대체
+                String revealedManittoGroupNickname = (manittoUserGroup != null && manittoUserGroup.getGroupUserNickname() != null)
+                        ? manittoUserGroup.getGroupUserNickname()
+                        : manittoUser.getNickname();
+
                 revealedManitto = ManittoDetailResponseDto.RevealedManittoDto.builder()
                         .name(manittoUser.getNickname()) // 카카오 실명
-                        .groupNickname(manittoUserGroup != null ? manittoUserGroup.getGroupUserNickname() : null)
+                        .groupNickname(revealedManittoGroupNickname) // 그룹 닉네임 우선, 없으면 카톡 실명
                         .groupProfileImage(manittoUserGroup != null ? manittoUserGroup.getGroupUserProfileImageUrl() : null)
                         .anonymousName(manittoAnonymousName)
                         .build();
@@ -182,9 +187,14 @@ public class ManittoService {
                             .findAnonymousNameByUserIdAndGroupIdAndWeek(previousManittoUser.getId(), groupId, previousWeek)
                             .orElse("익명의 마니또");
 
+                    // 그룹 닉네임이 없으면 카톡 실명으로 대체
+                    String previousManittoGroupNickname = (previousManittoUserGroup != null && previousManittoUserGroup.getGroupUserNickname() != null)
+                            ? previousManittoUserGroup.getGroupUserNickname()
+                            : previousManittoUser.getNickname();
+
                     previousCycleManitto = ManittoDetailResponseDto.PreviousCycleManittoDto.builder()
                             .name(previousManittoUser.getNickname())
-                            .groupNickname(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserNickname() : null)
+                            .groupNickname(previousManittoGroupNickname) // 그룹 닉네임 우선, 없으면 카톡 실명
                             .groupProfileImage(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserProfileImageUrl() : null)
                             .anonymousName(previousManittoAnonymousName)
                             .build();
@@ -239,9 +249,14 @@ public class ManittoService {
                             .findAnonymousNameByUserIdAndGroupIdAndWeek(previousManittoUser.getId(), groupId, previousWeek)
                             .orElse("익명의 마니또");
 
+                    // 그룹 닉네임이 없으면 카톡 실명으로 대체
+                    String previousManittoGroupNickname = (previousManittoUserGroup != null && previousManittoUserGroup.getGroupUserNickname() != null)
+                            ? previousManittoUserGroup.getGroupUserNickname()
+                            : previousManittoUser.getNickname();
+
                     previousCycleManitto = ManittoDetailResponseDto.PreviousCycleManittoDto.builder()
                             .name(previousManittoUser.getNickname())
-                            .groupNickname(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserNickname() : null)
+                            .groupNickname(previousManittoGroupNickname) // 그룹 닉네임 우선, 없으면 카톡 실명
                             .groupProfileImage(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserProfileImageUrl() : null)
                             .anonymousName(previousManittoAnonymousName)
                             .build();
