@@ -45,7 +45,6 @@ public class SecurityConfig {
                         .requestMatchers("/auth/oauth/callback").permitAll()
                         .requestMatchers("/auth/token/refresh").permitAll()
                         .requestMatchers("/groups/public").permitAll() // 전체 그룹 조회 API 공개
-                        .requestMatchers("/test/**").permitAll() // 테스트 API 접근 허용 추가
                         .requestMatchers("/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/survey").authenticated()

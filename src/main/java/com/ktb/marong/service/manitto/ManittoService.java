@@ -77,8 +77,11 @@ public class ManittoService {
 
         // 5. 시간대에 따른 분기 처리
         if ("MANITTO_REVEAL".equals(currentPeriod)) {
-            // 마니또 공개 기간 (금요일 17시 ~ 월요일 12시)
+            // 마니또 공개 기간 (금요일 17시 ~ 월요일 00시)
             return buildRevealPeriodResponse(userId, groupId, group, currentWeek, remainingTime, isNewUser);
+        } else if ("MATCHING_PREPARATION".equals(currentPeriod)) {
+            // 매칭 준비 기간 (월요일 00시 ~ 월요일 12시)
+            return buildMatchingPreparationResponse(userId, groupId, group, currentWeek, remainingTime, isNewUser);
         } else {
             // 일반 활동 기간 (월요일 12시 ~ 금요일 17시)
             return buildActivePeriodResponse(userId, groupId, group, currentWeek, remainingTime, isNewUser);
@@ -102,7 +105,7 @@ public class ManittoService {
     }
 
     /**
-     * 마니또 공개 기간 응답 생성 (금요일 17시 ~ 월요일 12시) -> MANITTO_REVEAL
+     * 마니또 공개 기간 응답 생성 (금요일 17시 ~ 월요일 00시) -> MANITTO_REVEAL
      * 신규 사용자 처리 포함
      */
     private ManittoDetailResponseDto buildRevealPeriodResponse(Long userId, Long groupId, Group group,
@@ -128,9 +131,14 @@ public class ManittoService {
                         .findAnonymousNameByUserIdAndGroupIdAndWeek(manittoUser.getId(), groupId, currentWeek)
                         .orElse("익명의 마니또");
 
+                // 그룹 닉네임이 없으면 카톡 실명으로 대체
+                String revealedManittoGroupNickname = (manittoUserGroup != null && manittoUserGroup.getGroupUserNickname() != null)
+                        ? manittoUserGroup.getGroupUserNickname()
+                        : manittoUser.getNickname();
+
                 revealedManitto = ManittoDetailResponseDto.RevealedManittoDto.builder()
                         .name(manittoUser.getNickname()) // 카카오 실명
-                        .groupNickname(manittoUserGroup != null ? manittoUserGroup.getGroupUserNickname() : null)
+                        .groupNickname(revealedManittoGroupNickname) // 그룹 닉네임 우선, 없으면 카톡 실명
                         .groupProfileImage(manittoUserGroup != null ? manittoUserGroup.getGroupUserProfileImageUrl() : null)
                         .anonymousName(manittoAnonymousName)
                         .build();
@@ -149,6 +157,64 @@ public class ManittoService {
                 .isNewUser(isNewUser)
                 .revealedManitto(revealedManitto)
                 // 마니또 공개 기간에는 다른 필드들을 설정하지 않음 (null로 유지)
+                .build();
+    }
+
+    /**
+     * 매칭 준비 기간 응답 생성 (월요일 00시 ~ 월요일 12시) -> MATCHING_PREPARATION
+     * 신규 사용자 처리 포함
+     */
+    private ManittoDetailResponseDto buildMatchingPreparationResponse(Long userId, Long groupId, Group group,
+                                                                      int currentWeek, String remainingTime, boolean isNewUser) {
+        log.info("매칭 준비 기간 응답 생성: userId={}, groupId={}, week={}, isNewUser={}", userId, groupId, currentWeek, isNewUser);
+
+        ManittoDetailResponseDto.PreviousCycleManittoDto previousCycleManitto = null;
+
+        if (!isNewUser) {
+            // 기존 사용자인 경우만 지난주 마니또 정보 조회
+            int previousWeek = currentWeek - 1;
+            if (previousWeek > 0) {
+                List<Manitto> previousManitteeList = manittoRepository.findByManitteeIdAndGroupIdAndWeek(userId, groupId, previousWeek);
+
+                if (!previousManitteeList.isEmpty()) {
+                    Manitto previousManittoRelation = previousManitteeList.get(0);
+                    User previousManittoUser = previousManittoRelation.getManitto();
+
+                    UserGroup previousManittoUserGroup = userGroupRepository.findByUserIdAndGroupId(previousManittoUser.getId(), groupId)
+                            .orElse(null);
+
+                    String previousManittoAnonymousName = anonymousNameRepository
+                            .findAnonymousNameByUserIdAndGroupIdAndWeek(previousManittoUser.getId(), groupId, previousWeek)
+                            .orElse("익명의 마니또");
+
+                    // 그룹 닉네임이 없으면 카톡 실명으로 대체
+                    String previousManittoGroupNickname = (previousManittoUserGroup != null && previousManittoUserGroup.getGroupUserNickname() != null)
+                            ? previousManittoUserGroup.getGroupUserNickname()
+                            : previousManittoUser.getNickname();
+
+                    previousCycleManitto = ManittoDetailResponseDto.PreviousCycleManittoDto.builder()
+                            .name(previousManittoUser.getNickname())
+                            .groupNickname(previousManittoGroupNickname) // 그룹 닉네임 우선, 없으면 카톡 실명
+                            .groupProfileImage(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserProfileImageUrl() : null)
+                            .anonymousName(previousManittoAnonymousName)
+                            .build();
+
+                    log.info("매칭 준비 기간 - 이전 주기 마니또 정보: userId={}, name={}, anonymousName={}",
+                            previousManittoUser.getId(), previousManittoUser.getNickname(), previousManittoAnonymousName);
+                }
+            }
+        } else {
+            log.info("신규 사용자 - 매칭 준비 기간에 조회할 이전 마니또 정보 없음: userId={}, groupId={}", userId, groupId);
+        }
+
+        return ManittoDetailResponseDto.builder()
+                .period("MATCHING_PREPARATION")
+                .remainingTime(remainingTime)
+                .groupId(groupId)
+                .groupName(group.getName())
+                .isNewUser(isNewUser)
+                .previousCycleManitto(previousCycleManitto)
+                // 매칭 준비 기간에는 나머지 필드들을 설정하지 않음 (null로 유지)
                 .build();
     }
 
@@ -183,9 +249,14 @@ public class ManittoService {
                             .findAnonymousNameByUserIdAndGroupIdAndWeek(previousManittoUser.getId(), groupId, previousWeek)
                             .orElse("익명의 마니또");
 
+                    // 그룹 닉네임이 없으면 카톡 실명으로 대체
+                    String previousManittoGroupNickname = (previousManittoUserGroup != null && previousManittoUserGroup.getGroupUserNickname() != null)
+                            ? previousManittoUserGroup.getGroupUserNickname()
+                            : previousManittoUser.getNickname();
+
                     previousCycleManitto = ManittoDetailResponseDto.PreviousCycleManittoDto.builder()
                             .name(previousManittoUser.getNickname())
-                            .groupNickname(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserNickname() : null)
+                            .groupNickname(previousManittoGroupNickname) // 그룹 닉네임 우선, 없으면 카톡 실명
                             .groupProfileImage(previousManittoUserGroup != null ? previousManittoUserGroup.getGroupUserProfileImageUrl() : null)
                             .anonymousName(previousManittoAnonymousName)
                             .build();
@@ -256,7 +327,7 @@ public class ManittoService {
 
     /**
      * 현재 시간이 어떤 기간에 속하는지 판단
-     * @return "MANITTO_REVEAL" 또는 "MANITTO_ACTIVE"
+     * @return "MANITTO_REVEAL", "MATCHING_PREPARATION", 또는 "MANITTO_ACTIVE"
      */
     private String getCurrentPeriod() {
         LocalDateTime now = LocalDateTime.now();
@@ -271,9 +342,9 @@ public class ManittoService {
         else if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
             return "MANITTO_REVEAL";
         }
-        // 월요일 12시 이전인 경우
+        // 월요일 00시 ~ 12시 이전인 경우 (매칭 준비 기간)
         else if (dayOfWeek == DayOfWeek.MONDAY && hour < 12) {
-            return "MANITTO_REVEAL";
+            return "MATCHING_PREPARATION";
         }
         // 그 외의 경우 (월요일 12시 ~ 금요일 17시)
         else {
