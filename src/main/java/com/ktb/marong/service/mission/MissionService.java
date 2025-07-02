@@ -14,6 +14,7 @@ import com.ktb.marong.exception.ErrorCode;
 import com.ktb.marong.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -103,10 +104,11 @@ public class MissionService {
                 .map(groupMission -> {
                     Mission mission = groupMission.getMission();
 
-                    // 오늘 해당 미션을 선택한 사용자 수 조회
-                    int currentSelections = countTodaySelectionsForMission(groupId, mission.getId(), today, currentWeek);
+                    // GroupMission의 remainingCount를 직접 사용 (매일 자정에 리셋됨)
+                    int remainingSelections = groupMission.getRemainingCount();
                     int maxSelections = groupMission.getMaxAssignable();
-                    int remainingSelections = Math.max(0, maxSelections - currentSelections);
+                    int currentSelections = maxSelections - remainingSelections; // 현재까지 선택된 개수
+
                     boolean alreadySelectedInWeek = selectedMissionIds.contains(mission.getId());
                     boolean selectable = remainingSelections > 0 && !alreadySelectedInWeek && canSelectToday && groupMission.isSelectable();
 
@@ -233,15 +235,52 @@ public class MissionService {
     }
 
     /**
-     * 오늘 특정 미션을 선택한 사용자 수 조회 (그룹별)
+     * 매일 자정에 모든 GroupMission의 remainingCount를 maxAssignable로 리셋
+     * 매일 00:00:00에 실행
      */
-    private int countTodaySelectionsForMission(Long groupId, Long missionId, LocalDate date, Integer week) {
-        List<UserMission> todaySelections = userMissionRepository.findTodaysInProgressMissionsByUserAndGroup(
-                null, groupId, date, week); // userId를 null로 하여 모든 사용자 조회
+    @Scheduled(cron = "0 0 0 * * *")
+    @Transactional
+    public void resetDailyMissionSelectionCounts() {
+        log.info("매일 자정 미션 선택 가능 개수 리셋 시작");
 
-        return (int) todaySelections.stream()
-                .filter(um -> um.getMission().getId().equals(missionId))
-                .filter(um -> "manual".equals(um.getSelectionType())) // 수동 선택만 카운트
-                .count();
+        try {
+            // 현재 주차 계산
+            int currentWeek = WeekCalculator.getCurrentWeek();
+
+            // 현재 주차에 있는 모든 GroupMission 조회
+            List<GroupMission> currentWeekGroupMissions = groupMissionRepository.findByWeek(currentWeek);
+
+            if (currentWeekGroupMissions.isEmpty()) {
+                log.info("현재 주차({})에 리셋할 GroupMission이 없음", currentWeek);
+                return;
+            }
+
+            // 각 GroupMission의 remainingCount를 maxAssignable로 리셋
+            int resetCount = 0;
+            for (GroupMission groupMission : currentWeekGroupMissions) {
+                int beforeCount = groupMission.getRemainingCount();
+                groupMission.resetDailyRemainingCount();
+                int afterCount = groupMission.getRemainingCount();
+
+                log.debug("GroupMission 리셋: groupId={}, missionId={}, week={}, before={}, after={}",
+                        groupMission.getGroup().getId(),
+                        groupMission.getMission().getId(),
+                        groupMission.getWeek(),
+                        beforeCount,
+                        afterCount);
+
+                resetCount++;
+            }
+
+            // 벌크 저장
+            groupMissionRepository.saveAll(currentWeekGroupMissions);
+
+            log.info("매일 자정 미션 선택 가능 개수 리셋 완료: 현재 주차={}, 리셋된 GroupMission 개수={}",
+                    currentWeek, resetCount);
+
+        } catch (Exception e) {
+            log.error("매일 자정 미션 선택 가능 개수 리셋 중 오류 발생", e);
+            // 트랜잭션 롤백됨
+        }
     }
 }
