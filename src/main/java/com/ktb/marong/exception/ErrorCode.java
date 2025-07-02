@@ -77,6 +77,7 @@ public enum ErrorCode {
     INVITE_CODE_INVALID_CHARACTERS(400, "초대 코드는 영어와 숫자만 사용할 수 있습니다."),
     ALREADY_JOINED_GROUP(409, "이미 가입된 그룹입니다."),
     GROUP_NICKNAME_REQUIRED(400, "그룹 내 사용자 닉네임 설정이 필요합니다."),
+    CANNOT_LEAVE_GROUP_AS_OWNER(400, "그룹 소유자는 다른 멤버에게 소유권을 이전한 후 탈퇴할 수 있습니다."),
 
     // 닉네임 관련 에러
     NICKNAME_TOO_SHORT(400, "닉네임이 너무 짧습니다."),
