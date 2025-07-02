@@ -194,6 +194,52 @@ public class GroupService {
     }
 
     /**
+     * 그룹 탈퇴
+     */
+    @Transactional
+    public void leaveGroup(Long userId, Long groupId) {
+        log.info("그룹 탈퇴 요청: userId={}, groupId={}", userId, groupId);
+
+        // 1. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 3. 그룹 소유자는 탈퇴 불가 (소유권 이전 후 탈퇴 가능)
+        if (userGroup.getIsOwner()) {
+            // 다른 멤버가 있는지 확인
+            int remainingMemberCount = userGroupRepository.countByGroupId(groupId) - 1; // 본인 제외
+
+            if (remainingMemberCount > 0) {
+                throw new CustomException(ErrorCode.CANNOT_LEAVE_GROUP_AS_OWNER,
+                        "그룹 소유자는 다른 멤버에게 소유권을 이전한 후 탈퇴할 수 있습니다.");
+            }
+            // 혼자 있는 그룹이면 탈퇴와 함께 그룹 삭제
+        }
+
+        // 4. UserGroup 관계 삭제 (탈퇴)
+        userGroupRepository.delete(userGroup);
+        log.info("사용자-그룹 관계 삭제 완료: userId={}, groupId={}", userId, groupId);
+
+        // 5. 그룹 소유자였고 혼자 있던 경우 그룹 삭제
+        if (userGroup.getIsOwner()) {
+            int finalMemberCount = userGroupRepository.countByGroupId(groupId);
+            if (finalMemberCount == 0) {
+                // 빈 그룹 삭제 (관련 GroupMission도 함께 삭제됨 - CASCADE 설정 필요)
+                groupRepository.delete(group);
+                log.info("빈 그룹 삭제 완료: groupId={}, groupName={}", groupId, group.getName());
+            }
+        }
+
+        log.info("그룹 탈퇴 완료: userId={}, groupId={}, groupName={}",
+                userId, groupId, group.getName());
+    }
+
+    /**
      * 내가 속한 그룹 목록 조회 (최근 가입 순으로 정렬)
      */
     @Transactional(readOnly = true)

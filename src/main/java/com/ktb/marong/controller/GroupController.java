@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +86,65 @@ public class GroupController {
                 "group_joined",
                 null
         ));
+    }
+
+    /**
+     * 그룹 탈퇴
+     */
+    @DeleteMapping("/{groupId}/leave")
+    public ResponseEntity<?> leaveGroup(
+            @CurrentUser Long userId,
+            @PathVariable Long groupId) {
+
+        log.info("그룹 탈퇴 요청: userId={}, groupId={}", userId, groupId);
+
+        try {
+            // 탈퇴 전에 그룹 정보 미리 조회 (응답에 포함하기 위해)
+            UserGroupProfileResponseDto groupProfile = groupService.getUserGroupProfile(userId, groupId);
+
+            // 그룹 탈퇴 실행
+            groupService.leaveGroup(userId, groupId);
+
+            // 성공 응답 데이터 구성
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("groupId", groupId);
+            responseData.put("groupName", groupProfile.getGroupName());
+            responseData.put("leftAt", LocalDateTime.now());
+            responseData.put("success", true);
+            responseData.put("statusMessage", "그룹에서 성공적으로 탈퇴했습니다.");
+            responseData.put("memberCountAfterLeave", groupProfile.getMemberCount() - 1);
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    responseData,
+                    "group_left_successfully",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.error("그룹 탈퇴 실패: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("groupId", groupId);
+            errorData.put("userId", userId);
+            errorData.put("errorType", e.getErrorCode().name());
+            errorData.put("attemptedAt", LocalDateTime.now());
+
+            return ResponseEntity.status(e.getErrorCode().getStatus())
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("그룹 탈퇴 중 예상치 못한 오류: userId={}, groupId={}",
+                    userId, groupId, e);
+
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("groupId", groupId);
+            errorData.put("userId", userId);
+            errorData.put("attemptedAt", LocalDateTime.now());
+
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
+        }
     }
 
     /**
