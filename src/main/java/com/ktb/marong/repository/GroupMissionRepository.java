@@ -20,6 +20,13 @@ public interface GroupMissionRepository extends JpaRepository<GroupMission, Long
     List<GroupMission> findByGroupIdAndWeek(@Param("groupId") Long groupId, @Param("week") Integer week);
 
     /**
+     * 특정 주차의 모든 GroupMission 조회 (매일 리셋용)
+     */
+    @Query("SELECT gm FROM GroupMission gm JOIN FETCH gm.group JOIN FETCH gm.mission " +
+            "WHERE gm.week = :week")
+    List<GroupMission> findByWeek(@Param("week") Integer week);
+
+    /**
      * 특정 그룹, 주차, 미션의 설정 조회
      */
     Optional<GroupMission> findByGroupIdAndMissionIdAndWeek(Long groupId, Long missionId, Integer week);
