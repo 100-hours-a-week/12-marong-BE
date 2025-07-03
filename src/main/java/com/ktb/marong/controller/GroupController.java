@@ -315,7 +315,7 @@ public class GroupController {
             GroupValidator.validateGroupName(groupName);
             String normalizedName = GroupValidator.normalizeGroupName(groupName);
 
-            boolean isDuplicated = groupRepository.existsByNormalizedName(normalizedName);
+            boolean isDuplicated = groupRepository.existsByNormalizedNameWithFallback(normalizedName);
 
             Map<String, Object> response = new HashMap<>();
             response.put("available", !isDuplicated);
