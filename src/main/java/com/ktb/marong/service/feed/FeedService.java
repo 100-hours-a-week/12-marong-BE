@@ -224,16 +224,16 @@ public class FeedService {
      */
     @Transactional(readOnly = true)
     public PostPageResponseDto getPosts(Long userId, Long groupId, int page, int pageSize) {
-        log.info("게시글 목록 조회: userId={}, groupId={}, page={}", userId, groupId, page);
+        log.info("게시글 목록 조회: userId={}, groupId={}, page={}, pageSize={}", userId, groupId, page, pageSize);
 
         // 1. 그룹 존재 여부 확인
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
 
-        // 2. 사용자가 해당 그룹에 속해있는지 확인하고 그룹 정보도 함께 조회
-        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
-                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
-                        "해당 그룹에 속하지 않은 사용자입니다."));
+        boolean isMember = userGroupRepository.existsByUserIdAndGroupId(userId, groupId);
+        if (!isMember) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
+        }
 
         // 2. 페이지네이션 설정
         Pageable pageable = PageRequest.of(page - 1, pageSize);
@@ -257,11 +257,11 @@ public class FeedService {
                     // 실시간 마니띠 이름 결정
                     String realTimeManitteeName = determineManitteeNameForPost(post, groupId);
 
-                    // 게시글 작성자 이름 결정
-                    String authorName = determineAuthorNameForPost(post, groupId, currentWeek, isManittoRevealTime);
+                    // 게시글 작성자 이름과 프로필 사진 결정
+                    AuthorInfo authorInfo = determineAuthorInfoForPost(post, groupId, currentWeek, isManittoRevealTime);
 
                     return PostResponseDto.fromEntityWithRealTimeManitteeNameAndAuthor(
-                            post, likeCount, isLiked, realTimeManitteeName, authorName);
+                            post, likeCount, isLiked, realTimeManitteeName, authorInfo.getName(), authorInfo.getProfileImageUrl());
                 })
                 .collect(Collectors.toList());
 
@@ -280,13 +280,9 @@ public class FeedService {
     }
 
     /**
-     * 게시글 작성자 이름 결정
-     * 규칙:
-     * 1. 현재 주차 게시글 + 마니또 공개 시점 이전 = 익명 이름만
-     * 2. 현재 주차 게시글 + 마니또 공개 시점 이후 = "그룹닉네임 (익명이름)" 형태
-     * 3. 지난 주차 게시글 = 항상 "그룹닉네임 (익명이름)" 형태 (해당 주차 공개 시점 이후)
+     * 게시글 작성자 정보 결정 (이름 + 프로필 사진)
      */
-    private String determineAuthorNameForPost(Post post, Long groupId, int currentWeek, boolean isManittoRevealTime) {
+    private AuthorInfo determineAuthorInfoForPost(Post post, Long groupId, int currentWeek, boolean isManittoRevealTime) {
         try {
             int postWeek = post.getWeek();
             String anonymousName = post.getAnonymousSnapshotName();
@@ -295,7 +291,7 @@ public class FeedService {
             if (postWeek == currentWeek && !isManittoRevealTime) {
                 log.debug("현재 주차 비공개 시점 게시글: postId={}, week={}, 익명이름만 표시",
                         post.getId(), postWeek);
-                return anonymousName;
+                return new AuthorInfo(anonymousName, null);  // 프로필 사진 없음
             }
 
             // 케이스 2: 현재 주차 게시글이면서 마니또 공개 시점 이후
@@ -307,38 +303,64 @@ public class FeedService {
                         postAuthor.getId(), groupId).orElse(null);
 
                 String displayName;
+                String profileImageUrl = null;
+
                 if (authorUserGroup != null && authorUserGroup.hasGroupUserNickname()) {
                     // 그룹 내 닉네임이 있는 경우
                     displayName = authorUserGroup.getGroupUserNickname();
-                    log.debug("그룹 내 닉네임 사용: userId={}, groupNickname={}",
-                            postAuthor.getId(), displayName);
+                    profileImageUrl = authorUserGroup.getGroupUserProfileImageUrl();  // 그룹 프로필 사진
+                    log.debug("그룹 내 닉네임 사용: userId={}, groupNickname={}, profileUrl={}",
+                            postAuthor.getId(), displayName, profileImageUrl);
                 } else {
                     // 그룹 내 닉네임이 없는 경우 카카오 실명 사용
                     displayName = postAuthor.getNickname();
-                    log.debug("카카오 실명 사용: userId={}, kakaoName={}",
+                    profileImageUrl = null;  // 그룹 프로필이 없으므로 null
+                    log.debug("카카오 실명 사용: userId={}, kakaoName={}, profileUrl=null",
                             postAuthor.getId(), displayName);
                 }
 
                 // "그룹닉네임 (익명이름)" 또는 "카카오실명 (익명이름)" 형태로 반환
                 String finalAuthorName = displayName + " (" + anonymousName + ")";
 
-                String caseDescription = (postWeek == currentWeek) ? "현재 주차 공개 시점" : "지난 주차";
-                log.debug("{} 게시글 작성자 이름 변경: postId={}, week={}, originalName={}, newName={}",
-                        caseDescription, post.getId(), postWeek, anonymousName, finalAuthorName);
+                String caseDescription = (postWeek == currentWeek) ?
+                        "현재 주차 공개 시점" : "지난 주차";
+                log.debug("{} 게시글 작성자 정보 변경: postId={}, week={}, originalName={}, newName={}, profileUrl={}",
+                        caseDescription, post.getId(), postWeek, anonymousName, finalAuthorName, profileImageUrl);
 
-                return finalAuthorName;
+                return new AuthorInfo(finalAuthorName, profileImageUrl);
             }
 
             // 케이스 4: 미래 주차 게시글 (일반적으로 발생하지 않아야 함)
             log.warn("미래 주차 게시글 발견: postId={}, postWeek={}, currentWeek={}",
                     post.getId(), postWeek, currentWeek);
-            return anonymousName;
+            return new AuthorInfo(anonymousName, null);
 
         } catch (Exception e) {
-            log.warn("게시글 작성자 이름 결정 실패, 기존 이름 사용: postId={}, error={}",
+            log.warn("게시글 작성자 정보 결정 실패, 기존 이름 사용: postId={}, error={}",
                     post.getId(), e.getMessage());
             // 오류 발생시 기존 익명 이름 사용
-            return post.getAnonymousSnapshotName();
+            return new AuthorInfo(post.getAnonymousSnapshotName(), null);
+        }
+    }
+
+    /**
+     * 작성자 정보를 담는 내부 클래스
+     */
+    private static class AuthorInfo {
+        private final String name;
+        private final String profileImageUrl;
+
+        public AuthorInfo(String name, String profileImageUrl) {
+            this.name = name;
+            this.profileImageUrl = profileImageUrl;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getProfileImageUrl() {
+            return profileImageUrl;
         }
     }
 
