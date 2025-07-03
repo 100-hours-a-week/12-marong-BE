@@ -257,6 +257,58 @@ public class GroupService {
     }
 
     /**
+     * 그룹 멤버 리스트 조회
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMemberResponseDto> getGroupMembers(Long userId, Long groupId) {
+        log.info("그룹 멤버 리스트 조회: userId={}, groupId={}", userId, groupId);
+
+        // 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 그룹의 모든 멤버 조회
+        List<UserGroup> userGroups = userGroupRepository.findByGroupIdWithUser(groupId);
+
+        return userGroups.stream()
+                .map(ug -> {
+                    User user = ug.getUser();
+
+                    // 그룹 닉네임이 설정되어 있으면 그룹 닉네임, 없으면 카카오 실명 사용
+                    String displayName = ug.getGroupUserNickname() != null && !ug.getGroupUserNickname().trim().isEmpty()
+                            ? ug.getGroupUserNickname()
+                            : user.getNickname();
+
+                    // 그룹 프로필 사진이 설정되어 있으면 그룹 프로필 사진, 없으면 null
+                    String profileImageUrl = ug.getGroupUserProfileImageUrl();
+
+                    return GroupMemberResponseDto.builder()
+                            .userId(user.getId())
+                            .nickname(displayName)
+                            .profileImageUrl(profileImageUrl)  // 설정된 그룹 프로필이 없으면 null
+                            .isOwner(ug.getIsOwner())
+                            .joinedAt(ug.getJoinedAt())
+                            .build();
+                })
+                .sorted((m1, m2) -> {
+                    // 그룹 생성자를 맨 앞으로, 나머지는 가입일 순으로 정렬
+                    if (m1.isOwner() && !m2.isOwner()) {
+                        return -1;
+                    } else if (!m1.isOwner() && m2.isOwner()) {
+                        return 1;
+                    } else {
+                        return m1.getJoinedAt().compareTo(m2.getJoinedAt());
+                    }
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 그룹 프로필 정보 업데이트 (그룹별 닉네임과 프로필 사진 설정)
      */
     @Transactional
