@@ -2,6 +2,7 @@ package com.ktb.marong.service.user;
 
 import com.ktb.marong.domain.feed.Post;
 import com.ktb.marong.domain.group.Group;
+import com.ktb.marong.domain.group.UserGroup;
 import com.ktb.marong.domain.user.MbtiUpdates;
 import com.ktb.marong.domain.user.User;
 import com.ktb.marong.dto.response.user.MyPagePostResponseDto;
@@ -32,6 +33,7 @@ public class MyPageService {
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
     private final MbtiUpdatesRepository mbtiUpdatesRepository;
+    private final UserGroupRepository userGroupRepository;
 
     /**
      * 마이페이지용 사용자가 작성한 게시글 목록 조회 (그룹별로 묶어서)
@@ -105,7 +107,16 @@ public class MyPageService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         boolean isLiked = postLikeRepository.existsByUserAndPost(user, post);
 
-        // 2. MBTI 업데이트 정보 조회
+        // 2. 해당 그룹에서의 사용자 프로필 정보 조회
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, post.getGroupId())
+                .orElse(null);
+
+        String authorProfileImageUrl = null;
+        if (userGroup != null) {
+            authorProfileImageUrl = userGroup.getGroupUserProfileImageUrl();
+        }
+
+        // 3. MBTI 업데이트 정보 조회
         Optional<MbtiUpdates> mbtiUpdateOpt = mbtiUpdatesRepository.findByPostId(post.getId());
         MyPagePostResponseDto.MbtiUpdateInfo mbtiUpdateInfo = null;
 
@@ -120,11 +131,11 @@ public class MyPageService {
                     .build();
         }
 
-        // 3. PostInfo DTO 생성 (모든 필드 포함)
+        // 4. PostInfo DTO 생성
         return MyPagePostResponseDto.PostInfo.builder()
                 .feedId(post.getId())
-                .author(post.getAnonymousSnapshotName())
-                .authorProfileImageUrl(null) // 익명이므로 null
+                .anonymousAuthorName(post.getAnonymousSnapshotName())
+                .authorProfileImageUrl(authorProfileImageUrl)
                 .missionTitle(post.getMission().getTitle())
                 .manitteeName(post.getManitteeName())
                 .content(post.getContent())
