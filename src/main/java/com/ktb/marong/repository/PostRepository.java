@@ -54,4 +54,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findByCreatedAtBetween(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
+
+    // 마이페이지용: 특정 사용자가 작성한 모든 게시글 조회 (최신순)
+    @Query("SELECT p FROM Post p WHERE p.user.id = :userId ORDER BY p.createdAt DESC")
+    Page<Post> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId, Pageable pageable);
+
+    // 마이페이지용: 특정 사용자가 특정 그룹에 작성한 게시글 조회 (최신순)
+    @Query("SELECT p FROM Post p WHERE p.user.id = :userId AND p.groupId = :groupId ORDER BY p.createdAt DESC")
+    Page<Post> findByUserIdAndGroupIdOrderByCreatedAtDesc(@Param("userId") Long userId, @Param("groupId") Long groupId, Pageable pageable);
 }
