@@ -1,5 +1,6 @@
 package com.ktb.marong.dto.response.recommendation;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,11 +21,16 @@ public class PlaceRecommendationResponseDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class PlaceDto {
+        private Long placeId;
         private String name;
         private String category;
         private String hours;
         private String address;
         private Double latitude;
         private Double longitude;
+
+        @JsonProperty("isLiked")
+        private boolean liked;
+        private long totalLikes;
     }
 }
