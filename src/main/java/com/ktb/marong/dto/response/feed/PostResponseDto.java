@@ -20,42 +20,45 @@ import java.time.LocalDateTime;
 public class PostResponseDto {
     private Long feedId;
     private String author;
+    private String authorProfileImageUrl;
     private String missionTitle;
     private String manitteeName;
     private String content;
     private int likes;
     private LocalDateTime createdAt;
     private String imageUrl;
-    private Integer week; // 주차 정보 추가
+    private Integer week;
 
     @JsonProperty("isLiked")
-    private boolean liked; // 필드명 변경: isLiked -> liked
+    private boolean liked;
 
     public static PostResponseDto fromEntity(Post post, int likesCount, boolean isLiked) {
         return PostResponseDto.builder()
                 .feedId(post.getId())
                 .author(post.getAnonymousSnapshotName())
+                .authorProfileImageUrl(null)  // 기본 메소드에서는 null
                 .missionTitle(post.getMission().getTitle())
                 .manitteeName(post.getManitteeName())
                 .content(post.getContent())
                 .likes(likesCount)
                 .createdAt(post.getCreatedAt())
                 .imageUrl(post.getImageUrl())
-                .week(post.getWeek()) // 주차 정보 포함
+                .week(post.getWeek())
                 .liked(isLiked)
                 .build();
     }
 
     /**
-     * 작성자 이름까지 커스터마이징 가능한 DTO 생성 메소드
+     * DTO 생성 메소드
      */
     public static PostResponseDto fromEntityWithRealTimeManitteeNameAndAuthor(Post post, int likesCount, boolean isLiked,
-                                                                              String realTimeManitteeName, String customAuthorName) {
+                                                                              String realTimeManitteeName, String customAuthorName, String authorProfileImageUrl) {
         return PostResponseDto.builder()
                 .feedId(post.getId())
-                .author(customAuthorName) // 커스터마이징된 작성자 이름 사용
+                .author(customAuthorName)
+                .authorProfileImageUrl(authorProfileImageUrl)
                 .missionTitle(post.getMission().getTitle())
-                .manitteeName(realTimeManitteeName) // 실시간으로 결정된 마니띠 이름 사용
+                .manitteeName(realTimeManitteeName)
                 .content(post.getContent())
                 .likes(likesCount)
                 .createdAt(post.getCreatedAt())

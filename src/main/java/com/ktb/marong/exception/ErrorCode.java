@@ -62,6 +62,7 @@ public enum ErrorCode {
 
     // 추천 관련 에러
     RECOMMENDATION_NOT_FOUND(404, "추천 정보를 찾을 수 없습니다."),
+    PLACE_LIKE_NOT_FOUND(404, "장소 좋아요 정보를 찾을 수 없습니다."),
 
     // 그룹 관련 에러
     MAX_GROUPS_EXCEEDED(400, "사용자당 최대 6개의 그룹까지 생성/가입할 수 있습니다."),

@@ -164,6 +164,42 @@ public class GroupController {
     }
 
     /**
+     * 그룹 멤버 리스트 조회 API
+     */
+    @GetMapping("/{groupId}/members")
+    public ResponseEntity<?> getGroupMembers(
+            @CurrentUser Long userId,
+            @PathVariable Long groupId) {
+
+        log.info("그룹 멤버 리스트 조회 요청: userId={}, groupId={}", userId, groupId);
+
+        try {
+            List<GroupMemberResponseDto> members = groupService.getGroupMembers(userId, groupId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("members", members);
+            response.put("totalCount", members.size());
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    response,
+                    "group_members_retrieved",
+                    null
+            ));
+
+        } catch (CustomException e) {
+            log.warn("그룹 멤버 조회 실패: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+        } catch (Exception e) {
+            log.error("그룹 멤버 조회 중 서버 오류: userId={}, groupId={}, error={}",
+                    userId, groupId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("INTERNAL_SERVER_ERROR", "서버 오류입니다."));
+        }
+    }
+
+    /**
      * 그룹 프로필 정보 업데이트
      * 닉네임과 프로필 이미지를 개별적으로 또는 함께 수정 가능
      */
@@ -315,7 +351,7 @@ public class GroupController {
             GroupValidator.validateGroupName(groupName);
             String normalizedName = GroupValidator.normalizeGroupName(groupName);
 
-            boolean isDuplicated = groupRepository.existsByNormalizedName(normalizedName);
+            boolean isDuplicated = groupRepository.existsByNormalizedNameWithFallback(normalizedName);
 
             Map<String, Object> response = new HashMap<>();
             response.put("available", !isDuplicated);

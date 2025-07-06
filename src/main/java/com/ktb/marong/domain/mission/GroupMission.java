@@ -65,6 +65,13 @@ public class GroupMission {
     }
 
     /**
+     * 매일 자정에 remainingCount를 maxAssignable로 리셋
+     */
+    public void resetDailyRemainingCount() {
+        this.remainingCount = this.maxAssignable;
+    }
+
+    /**
      * 선택 가능한지 확인
      */
     public boolean isSelectable() {
