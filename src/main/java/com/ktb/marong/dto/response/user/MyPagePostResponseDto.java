@@ -34,7 +34,7 @@ public class MyPagePostResponseDto {
     @AllArgsConstructor
     public static class PostInfo {
         private Long feedId;
-        private String author;
+        private String anonymousAuthorName;
         private String authorProfileImageUrl;
         private String missionTitle;
         private String manitteeName;
