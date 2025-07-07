@@ -1,6 +1,7 @@
 package com.ktb.marong.service.mission;
 
 import com.ktb.marong.common.util.WeekCalculator;
+import com.ktb.marong.config.EventConfig;
 import com.ktb.marong.domain.group.Group;
 import com.ktb.marong.domain.mission.GroupMission;
 import com.ktb.marong.domain.mission.Mission;
@@ -35,6 +36,7 @@ public class MissionService {
     private final UserGroupRepository userGroupRepository;
     private final ManittoRepository manittoRepository;
     private final UserMissionRepository userMissionRepository;
+    private final EventConfig eventConfig;
 
     private static final int MAX_DAILY_SELECTIONS_PER_MISSION = 5;
 
@@ -64,31 +66,33 @@ public class MissionService {
 
         LocalDate today = LocalDate.now();
 
-        // 3. 오늘 이미 선택한 미션이 있는지 확인
-        List<UserMission> todayMissions = userMissionRepository.findTodaysInProgressMissionsByUserAndGroup(
+        // 3. 오늘 이미 선택한 미션들 조회 (이번 주차에서)
+        List<UserMission> todayAssignedMissions = userMissionRepository.findAllMissionsAssignedOnDate(
                 userId, groupId, today, currentWeek);
 
-        boolean canSelectToday = todayMissions.isEmpty();
-        AvailableMissionResponseDto.MissionSelectionStatus todaySelection = null;
-
-        if (!canSelectToday) {
-            UserMission todayMission = todayMissions.get(0);
-            Mission selectedMission = todayMission.getMission();
-            todaySelection = AvailableMissionResponseDto.MissionSelectionStatus.builder()
-                    .missionId(selectedMission.getId())
-                    .title(selectedMission.getTitle())
-                    .description(selectedMission.getDescription())
-                    .difficulty(selectedMission.getDifficulty())
-                    .selectedAt(todayMission.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-                    .build();
-        }
-
-        // 4. 이번 주차에 이미 선택한 미션들 조회
-        List<UserMission> weeklyMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, groupId, currentWeek);
-        List<Long> selectedMissionIds = weeklyMissions.stream()
-                .filter(um -> "manual".equals(um.getSelectionType()))
+        List<Long> selectedMissionIds = todayAssignedMissions.stream()
                 .map(um -> um.getMission().getId())
                 .collect(Collectors.toList());
+
+        // 4. 이벤트 기간에 따른 선택 가능 여부 확인
+        boolean isEventPeriod = eventConfig.isUnlimitedMissionEventPeriod();
+        boolean canSelectToday;
+        String todaySelection;
+
+        if (isEventPeriod) {
+            // 이벤트 기간: 진행 중인 미션이 있으면 선택 불가
+            List<UserMission> inProgressMissions = userMissionRepository.findTodaysInProgressMissionsByUserAndGroup(
+                    userId, groupId, today, currentWeek);
+            canSelectToday = inProgressMissions.isEmpty();
+            todaySelection = inProgressMissions.isEmpty() ?
+                    "이벤트 기간: 미션을 완료하면 바로 다음 미션 선택 가능" :
+                    "진행 중인 미션을 완료해야 다음 미션 선택 가능";
+        } else {
+            // 일반 기간: 하루에 1개만 선택 가능
+            canSelectToday = todayAssignedMissions.isEmpty();
+            todaySelection = canSelectToday ? "오늘 미션을 선택하지 않음" :
+                    String.format("오늘 선택한 미션: %d개 (하루 1개 제한)", todayAssignedMissions.size());
+        }
 
         // 5. 해당 그룹의 현재 주차에 생성된 미션들만 조회
         List<GroupMission> availableGroupMissions = groupMissionRepository.findByGroupIdAndWeek(groupId, currentWeek);
@@ -154,12 +158,12 @@ public class MissionService {
         Group group = groupRepository.findById(requestDto.getGroupId())
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
 
-        Mission mission = missionRepository.findById(requestDto.getMissionId())
-                .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND));
-
         if (!userGroupRepository.existsByUserIdAndGroupId(userId, requestDto.getGroupId())) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND, "해당 그룹에 속하지 않은 사용자입니다.");
         }
+
+        Mission mission = missionRepository.findById(requestDto.getMissionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND));
 
         // 2. 마니또 매칭 확인
         int currentWeek = WeekCalculator.getCurrentWeek();
@@ -169,31 +173,40 @@ public class MissionService {
 
         LocalDate today = LocalDate.now();
 
-        // 3. 해당 미션이 현재 주차에 생성되어 있는지 확인
-        if (!groupMissionRepository.existsByGroupIdAndMissionIdAndWeek(requestDto.getGroupId(), requestDto.getMissionId(), currentWeek)) {
-            throw new CustomException(ErrorCode.MISSION_NOT_FOUND,
-                    String.format("해당 미션(ID: %d)은 현재 주차(%d)에 생성되지 않았습니다.", requestDto.getMissionId(), currentWeek));
-        }
-
-        // 4. 오늘 이미 미션을 선택했는지 확인
-        List<UserMission> todayMissions = userMissionRepository.findTodaysInProgressMissionsByUserAndGroup(
-                userId, requestDto.getGroupId(), today, currentWeek);
-        if (!todayMissions.isEmpty()) {
-            throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED, "오늘은 이미 미션을 선택했습니다.");
-        }
-
-        // 5. 이번 주차에 동일한 미션을 이미 선택했는지 확인
-        List<UserMission> weeklyMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(
-                userId, requestDto.getGroupId(), currentWeek);
-        boolean alreadySelectedInWeek = weeklyMissions.stream()
-                .filter(um -> "manual".equals(um.getSelectionType()))
+        // 3. 현재 주차에서 동일한 미션을 이미 선택했는지 확인
+        List<UserMission> existingMissions = userMissionRepository.findByUserIdAndGroupIdAndWeek(userId, requestDto.getGroupId(), currentWeek);
+        boolean alreadySelectedInWeek = existingMissions.stream()
                 .anyMatch(um -> um.getMission().getId().equals(requestDto.getMissionId()));
 
         if (alreadySelectedInWeek) {
-            throw new CustomException(ErrorCode.MISSION_ALREADY_COMPLETED, "이번 주차에 이미 선택한 미션입니다.");
+            throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED,
+                    "이번 주차에 이미 선택한 미션입니다.");
         }
 
-        // 6. GroupMission에서 설정된 선택 가능 인원 확인
+        // 4. 이벤트 기간에 따른 선택 가능 여부 확인
+        boolean isEventPeriod = eventConfig.isUnlimitedMissionEventPeriod();
+
+        if (isEventPeriod) {
+            // 이벤트 기간: 진행 중인 미션이 있으면 선택 불가
+            List<UserMission> inProgressMissions = userMissionRepository.findTodaysInProgressMissionsByUserAndGroup(
+                    userId, requestDto.getGroupId(), today, currentWeek);
+
+            if (!inProgressMissions.isEmpty()) {
+                throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED,
+                        "이벤트 기간 중 진행 중인 미션을 완료해야 다음 미션을 선택할 수 있습니다.");
+            }
+        } else {
+            // 일반 기간: 하루에 1개만 선택 가능
+            List<UserMission> todayAssignedMissions = userMissionRepository.findAllMissionsAssignedOnDate(
+                    userId, requestDto.getGroupId(), today, currentWeek);
+
+            if (!todayAssignedMissions.isEmpty()) {
+                throw new CustomException(ErrorCode.DAILY_MISSION_LIMIT_EXCEEDED,
+                        "하루에 하나의 미션만 선택할 수 있습니다.");
+            }
+        }
+
+        // 5. GroupMission에서 설정된 선택 가능 인원 확인
         GroupMission groupMission = groupMissionRepository.findByGroupIdAndMissionIdAndWeek(
                         requestDto.getGroupId(), requestDto.getMissionId(), currentWeek)
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND, "해당 그룹에서 생성되지 않은 미션입니다."));
@@ -203,7 +216,7 @@ public class MissionService {
                     "해당 미션은 선택할 수 있는 인원이 마감되었습니다.");
         }
 
-        // 7. 미션 선택 및 저장
+        // 6. 미션 선택 및 저장
         UserMission userMission = UserMission.builder()
                 .user(user)
                 .groupId(requestDto.getGroupId())
@@ -215,7 +228,7 @@ public class MissionService {
 
         UserMission savedMission = userMissionRepository.save(userMission);
 
-        // 8. GroupMission의 remaining_count 감소
+        // 7. GroupMission의 remaining_count 감소
         groupMission.decreaseRemainingCount();
         groupMissionRepository.save(groupMission);
 
