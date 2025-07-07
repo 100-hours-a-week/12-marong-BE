@@ -16,7 +16,7 @@ public class AvailableMissionResponseDto {
     private String groupName;
     private String date;
     private boolean canSelectToday; // 오늘 미션을 선택할 수 있는지 여부
-    private MissionSelectionStatus todaySelection; // 오늘 선택한 미션 정보
+    private String todaySelection; // 오늘 선택한 미션 정보
     private List<AvailableMissionDto> availableMissions;
 
     @Getter
