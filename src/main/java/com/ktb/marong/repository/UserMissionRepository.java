@@ -111,17 +111,6 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
             @Param("week") Integer week);
 
     /**
-     * 특정 사용자의 특정 그룹에서 오늘 할당된 진행 중인 미션만 조회
-     */
-    @Query("SELECT um FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId " +
-            "AND um.assignedDate = :date AND um.status = 'ing' AND um.week = :week")
-    List<UserMission> findTodaysInProgressMissionsByUserAndGroup(
-            @Param("userId") Long userId,
-            @Param("groupId") Long groupId,
-            @Param("date") LocalDate date,
-            @Param("week") Integer week);
-
-    /**
      * 특정 사용자의 특정 그룹에서 특정 상태의 미션 개수 조회
      */
     @Query("SELECT COUNT(um) FROM UserMission um WHERE um.user.id = :userId AND um.groupId = :groupId " +
@@ -131,4 +120,29 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
             @Param("groupId") Long groupId,
             @Param("week") Integer week,
             @Param("status") String status);
+
+    /**
+     * 특정 사용자의 특정 그룹에서 오늘 할당된 진행 중인 미션만 조회 (수동 선택 전용)
+     */
+    @Query("SELECT um FROM UserMission um WHERE " +
+            "(:userId IS NULL OR um.user.id = :userId) AND " +
+            "um.groupId = :groupId AND um.assignedDate = :date AND " +
+            "um.status = 'ing' AND um.week = :week AND um.selectionType = 'manual'")
+    List<UserMission> findTodaysInProgressMissionsByUserAndGroup(
+            @Param("userId") Long userId,
+            @Param("groupId") Long groupId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
+
+    /**
+     * 특정 그룹에서 오늘 특정 미션을 선택한 사용자 수 조회 (수동 선택만)
+     */
+    @Query("SELECT COUNT(um) FROM UserMission um WHERE um.groupId = :groupId AND " +
+            "um.mission.id = :missionId AND um.assignedDate = :date AND " +
+            "um.week = :week AND um.selectionType = 'manual'")
+    int countTodayMissionSelections(
+            @Param("groupId") Long groupId,
+            @Param("missionId") Long missionId,
+            @Param("date") LocalDate date,
+            @Param("week") Integer week);
 }

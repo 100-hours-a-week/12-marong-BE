@@ -51,7 +51,7 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
     @Query("SELECT ug FROM UserGroup ug JOIN FETCH ug.group WHERE ug.user.id = :userId AND ug.isOwner = true")
     List<UserGroup> findOwnedGroupsByUserId(@Param("userId") Long userId);
 
-    // 닉네임 중복 체크 관련 메서드 (정규화된 닉네임 기준)
+    // 기존 닉네임 중복 체크 관련 메서드 (정규화된 닉네임 기준)
 
     /**
      * 특정 그룹 내에서 정규화된 닉네임 중복 여부 확인 (null 제외)
@@ -77,39 +77,50 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
             @Param("normalizedNickname") String normalizedNickname,
             @Param("userId") Long userId);
 
+    // 방어로직 메소드들 - null 상태인 normalized_nickname 처리
+
+    /**
+     * normalized_nickname이 null인 사용자들 중에서 실시간 정규화해서 중복체크
+     * 방어로직용 메소드
+     */
+    @Query("SELECT COUNT(ug) > 0 FROM UserGroup ug " +
+            "WHERE ug.group.id = :groupId " +
+            "AND ug.normalizedNickname IS NULL " +
+            "AND ug.groupUserNickname IS NOT NULL " +
+            "AND LOWER(REPLACE(REPLACE(REPLACE(TRIM(ug.groupUserNickname), ' ', ''), CHAR(9), ''), CHAR(10), '')) = :normalizedNickname")
+    boolean existsByGroupIdAndNullNormalizedNicknameWithRuntimeNormalization(@Param("groupId") Long groupId,
+                                                                             @Param("normalizedNickname") String normalizedNickname);
+
+    /**
+     * 닉네임 중복체크 - 방어로직 포함 (사용자 제외)
+     */
+    @Query("SELECT COUNT(ug) > 0 FROM UserGroup ug " +
+            "WHERE ug.group.id = :groupId " +
+            "AND ug.user.id != :excludeUserId " +
+            "AND (ug.normalizedNickname = :normalizedNickname " +
+            "OR (ug.normalizedNickname IS NULL AND ug.groupUserNickname IS NOT NULL " +
+            "AND LOWER(REPLACE(REPLACE(REPLACE(TRIM(ug.groupUserNickname), ' ', ''), CHAR(9), ''), CHAR(10), '')) = :normalizedNickname))")
+    boolean existsByGroupIdAndNormalizedNicknameExcludingUserWithFallback(@Param("groupId") Long groupId,
+                                                                          @Param("normalizedNickname") String normalizedNickname,
+                                                                          @Param("excludeUserId") Long excludeUserId);
+
+    /**
+     * 닉네임 중복체크 - 방어로직 포함 (전체)
+     */
+    @Query("SELECT COUNT(ug) > 0 FROM UserGroup ug " +
+            "WHERE ug.group.id = :groupId " +
+            "AND (ug.normalizedNickname = :normalizedNickname " +
+            "OR (ug.normalizedNickname IS NULL AND ug.groupUserNickname IS NOT NULL " +
+            "AND LOWER(REPLACE(REPLACE(REPLACE(TRIM(ug.groupUserNickname), ' ', ''), CHAR(9), ''), CHAR(10), '')) = :normalizedNickname))")
+    boolean existsByGroupIdAndNormalizedNicknameWithFallback(@Param("groupId") Long groupId,
+                                                             @Param("normalizedNickname") String normalizedNickname);
+
     /**
      * 특정 그룹의 모든 닉네임 목록 조회 (표시용 닉네임 반환, null 제외)
      */
     @Query("SELECT ug.groupUserNickname FROM UserGroup ug " +
             "WHERE ug.group.id = :groupId " +
-            "AND ug.groupUserNickname IS NOT NULL")
-    List<String> findAllNicknamesByGroupId(@Param("groupId") Long groupId);
-
-    // 기존 메서드들은 MVP 호환성을 위해 유지 (deprecated)
-
-    /**
-     * @deprecated 정규화된 닉네임 기준 중복체크를 사용해야 함 (existsByGroupIdAndNormalizedNickname)
-     */
-    @Deprecated
-    @Query("SELECT CASE WHEN COUNT(ug) > 0 THEN true ELSE false END " +
-            "FROM UserGroup ug " +
-            "WHERE ug.group.id = :groupId " +
-            "AND ug.groupUserNickname = :nickname " +
-            "AND ug.groupUserNickname IS NOT NULL")
-    boolean existsByGroupIdAndGroupUserNickname(@Param("groupId") Long groupId, @Param("nickname") String nickname);
-
-    /**
-     * @deprecated 정규화된 닉네임 기준 중복체크를 사용해야 함 (existsByGroupIdAndNormalizedNicknameExcludingUser)
-     */
-    @Deprecated
-    @Query("SELECT CASE WHEN COUNT(ug) > 0 THEN true ELSE false END " +
-            "FROM UserGroup ug " +
-            "WHERE ug.group.id = :groupId " +
-            "AND ug.groupUserNickname = :nickname " +
             "AND ug.groupUserNickname IS NOT NULL " +
-            "AND ug.user.id != :userId")
-    boolean existsByGroupIdAndGroupUserNicknameExcludingUser(
-            @Param("groupId") Long groupId,
-            @Param("nickname") String nickname,
-            @Param("userId") Long userId);
+            "ORDER BY ug.joinedAt ASC")
+    List<String> findAllNicknamesByGroupId(@Param("groupId") Long groupId);
 }

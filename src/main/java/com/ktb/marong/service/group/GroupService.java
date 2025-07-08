@@ -78,9 +78,7 @@ public class GroupService {
         String normalizedNickname = GroupNicknameValidator.normalizeNickname(requestDto.getGroupUserNickname());
 
         // 그룹 이름 중복 체크 (정규화된 이름으로 체크)
-        if (groupRepository.existsByNormalizedName(normalizedGroupNameForCheck)) {
-            throw new CustomException(ErrorCode.GROUP_NAME_DUPLICATED);
-        }
+        checkGroupNameDuplicationWithFallback(normalizedGroupNameForCheck);
 
         // 초대 코드 중복 체크 (대소문자 구분 안함)
         if (groupRepository.existsByInviteCode(normalizedInviteCode)) {
@@ -167,7 +165,7 @@ public class GroupService {
         checkGroupMemberLimit(groupId);
 
         // 닉네임 중복 체크
-        checkNicknameDuplication(groupId, normalizedNickname, null);
+        checkNicknameDuplicationWithFallback(groupId, normalizedNickname, null);
 
         // 그룹 내 사용자 프로필 이미지 업로드 처리
         String userProfileImageUrl = uploadUserProfileImage(groupUserProfileImage);
@@ -194,6 +192,52 @@ public class GroupService {
     }
 
     /**
+     * 그룹 탈퇴
+     */
+    @Transactional
+    public void leaveGroup(Long userId, Long groupId) {
+        log.info("그룹 탈퇴 요청: userId={}, groupId={}", userId, groupId);
+
+        // 1. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 2. 사용자가 해당 그룹에 속해있는지 확인
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 3. 그룹 소유자는 탈퇴 불가 (소유권 이전 후 탈퇴 가능)
+        if (userGroup.getIsOwner()) {
+            // 다른 멤버가 있는지 확인
+            int remainingMemberCount = userGroupRepository.countByGroupId(groupId) - 1; // 본인 제외
+
+            if (remainingMemberCount > 0) {
+                throw new CustomException(ErrorCode.CANNOT_LEAVE_GROUP_AS_OWNER,
+                        "그룹 소유자는 다른 멤버에게 소유권을 이전한 후 탈퇴할 수 있습니다.");
+            }
+            // 혼자 있는 그룹이면 탈퇴와 함께 그룹 삭제
+        }
+
+        // 4. UserGroup 관계 삭제 (탈퇴)
+        userGroupRepository.delete(userGroup);
+        log.info("사용자-그룹 관계 삭제 완료: userId={}, groupId={}", userId, groupId);
+
+        // 5. 그룹 소유자였고 혼자 있던 경우 그룹 삭제
+        if (userGroup.getIsOwner()) {
+            int finalMemberCount = userGroupRepository.countByGroupId(groupId);
+            if (finalMemberCount == 0) {
+                // 빈 그룹 삭제 (관련 GroupMission도 함께 삭제됨 - CASCADE 설정 필요)
+                groupRepository.delete(group);
+                log.info("빈 그룹 삭제 완료: groupId={}, groupName={}", groupId, group.getName());
+            }
+        }
+
+        log.info("그룹 탈퇴 완료: userId={}, groupId={}, groupName={}",
+                userId, groupId, group.getName());
+    }
+
+    /**
      * 내가 속한 그룹 목록 조회 (최근 가입 순으로 정렬)
      */
     @Transactional(readOnly = true)
@@ -208,6 +252,58 @@ public class GroupService {
                 .map(userGroup -> {
                     int memberCount = userGroupRepository.countByGroupId(userGroup.getGroup().getId());
                     return GroupResponseDto.fromUserGroup(userGroup, memberCount);
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 그룹 멤버 리스트 조회
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMemberResponseDto> getGroupMembers(Long userId, Long groupId) {
+        log.info("그룹 멤버 리스트 조회: userId={}, groupId={}", userId, groupId);
+
+        // 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+
+        // 사용자가 해당 그룹에 속해있는지 확인
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND,
+                        "해당 그룹에 속하지 않은 사용자입니다."));
+
+        // 그룹의 모든 멤버 조회
+        List<UserGroup> userGroups = userGroupRepository.findByGroupIdWithUser(groupId);
+
+        return userGroups.stream()
+                .map(ug -> {
+                    User user = ug.getUser();
+
+                    // 그룹 닉네임이 설정되어 있으면 그룹 닉네임, 없으면 카카오 실명 사용
+                    String displayName = ug.getGroupUserNickname() != null && !ug.getGroupUserNickname().trim().isEmpty()
+                            ? ug.getGroupUserNickname()
+                            : user.getNickname();
+
+                    // 그룹 프로필 사진이 설정되어 있으면 그룹 프로필 사진, 없으면 null
+                    String profileImageUrl = ug.getGroupUserProfileImageUrl();
+
+                    return GroupMemberResponseDto.builder()
+                            .userId(user.getId())
+                            .nickname(displayName)
+                            .profileImageUrl(profileImageUrl)  // 설정된 그룹 프로필이 없으면 null
+                            .isOwner(ug.getIsOwner())
+                            .joinedAt(ug.getJoinedAt())
+                            .build();
+                })
+                .sorted((m1, m2) -> {
+                    // 그룹 생성자를 맨 앞으로, 나머지는 가입일 순으로 정렬
+                    if (m1.isOwner() && !m2.isOwner()) {
+                        return -1;
+                    } else if (!m1.isOwner() && m2.isOwner()) {
+                        return 1;
+                    } else {
+                        return m1.getJoinedAt().compareTo(m2.getJoinedAt());
+                    }
                 })
                 .collect(Collectors.toList());
     }
@@ -237,7 +333,7 @@ public class GroupService {
         // 기존 닉네임과 동일한지 확인
         if (!normalizedNickname.equals(userGroup.getGroupUserNickname())) {
             // 닉네임이 변경된 경우에만 중복 체크 (자신 제외)
-            checkNicknameDuplication(groupId, normalizedNickname, userId);
+            checkNicknameDuplicationWithFallback(groupId, normalizedNickname, userId);
         }
 
         String groupUserProfileImageUrl = userGroup.getGroupUserProfileImageUrl();
@@ -393,21 +489,64 @@ public class GroupService {
     }
 
     /**
-     * 그룹 내 닉네임 중복 체크
+     * 그룹 이름 중복 체크 - 방어로직 포함
      */
-    private void checkNicknameDuplication(Long groupId, String nickname, Long excludeUserId) {
+    private void checkGroupNameDuplicationWithFallback(String normalizedGroupName) {
+        // 1차: 기본 normalized_name 칼럼으로 중복체크
+        boolean isDuplicated = groupRepository.existsByNormalizedName(normalizedGroupName);
+
+        if (!isDuplicated) {
+            // 2차: null 데이터들을 실시간 정규화해서 중복체크 (방어로직)
+            isDuplicated = groupRepository.existsByNullNormalizedNameWithRuntimeNormalization(normalizedGroupName);
+
+            if (isDuplicated) {
+                log.warn("방어로직에서 그룹명 중복 발견: normalizedName={}", normalizedGroupName);
+            }
+        }
+
+        if (isDuplicated) {
+            throw new CustomException(ErrorCode.GROUP_NAME_DUPLICATED);
+        }
+    }
+
+    /**
+     * 그룹 내 닉네임 중복 체크 - 방어로직 포함
+     */
+    private void checkNicknameDuplicationWithFallback(Long groupId, String nickname, Long excludeUserId) {
         // 입력된 닉네임을 중복체크용으로 정규화
         String normalizedForCheck = GroupNicknameValidator.normalizeNicknameForDuplication(nickname);
 
         boolean isDuplicated;
 
         if (excludeUserId != null) {
-            // 특정 사용자 제외하고 중복 체크 (프로필 수정 시)
+            // 기본 normalized_nickname 칼럼으로 중복체크 (특정 사용자 제외)
             isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
                     groupId, normalizedForCheck, excludeUserId);
+
+            if (!isDuplicated) {
+                // null 데이터들을 실시간 정규화해서 중복체크 (방어로직)
+                isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUserWithFallback(
+                        groupId, normalizedForCheck, excludeUserId);
+
+                if (isDuplicated) {
+                    log.warn("방어로직에서 닉네임 중복 발견 (사용자 제외): groupId={}, normalizedNickname={}, excludeUserId={}",
+                            groupId, normalizedForCheck, excludeUserId);
+                }
+            }
         } else {
-            // 전체 중복 체크 (신규 가입 시)
+            // 기본 normalized_nickname 칼럼으로 중복체크 (전체)
             isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
+
+            if (!isDuplicated) {
+                // null 데이터들을 실시간 정규화해서 중복체크 (방어로직)
+                isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameWithFallback(
+                        groupId, normalizedForCheck);
+
+                if (isDuplicated) {
+                    log.warn("방어로직에서 닉네임 중복 발견 (전체): groupId={}, normalizedNickname={}",
+                            groupId, normalizedForCheck);
+                }
+            }
         }
 
         if (isDuplicated) {
@@ -425,14 +564,30 @@ public class GroupService {
         // 입력된 닉네임을 중복체크용으로 정규화
         String normalizedForCheck = GroupNicknameValidator.normalizeNicknameForDuplication(nickname);
 
+        boolean isDuplicated;
+
         if (excludeUserId != null) {
-            // 특정 사용자 제외하고 중복 체크 (프로필 수정 시)
-            return userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
+            // 기본 체크
+            isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUser(
                     groupId, normalizedForCheck, excludeUserId);
+
+            if (!isDuplicated) {
+                // 방어로직
+                isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameExcludingUserWithFallback(
+                        groupId, normalizedForCheck, excludeUserId);
+            }
         } else {
-            // 전체 중복 체크 (신규 가입 시)
-            return userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
+            // 기본 체크
+            isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNickname(groupId, normalizedForCheck);
+
+            if (!isDuplicated) {
+                // 방어로직
+                isDuplicated = userGroupRepository.existsByGroupIdAndNormalizedNicknameWithFallback(
+                        groupId, normalizedForCheck);
+            }
         }
+
+        return isDuplicated;
     }
 
     /**
@@ -520,7 +675,8 @@ public class GroupService {
     private void checkGroupLimit(Long userId) {
         int currentGroupCount = userGroupRepository.countByUserId(userId);
         if (currentGroupCount >= MAX_GROUPS_PER_USER) {
-            throw new CustomException(ErrorCode.MAX_GROUPS_EXCEEDED);
+            throw new CustomException(ErrorCode.MAX_GROUPS_EXCEEDED,
+                    "사용자당 최대 " + MAX_GROUPS_PER_USER + "개의 그룹에만 가입할 수 있습니다.");
         }
     }
 
@@ -530,7 +686,8 @@ public class GroupService {
     private void checkGroupMemberLimit(Long groupId) {
         int currentMemberCount = userGroupRepository.countByGroupId(groupId);
         if (currentMemberCount >= MAX_MEMBERS_PER_GROUP) {
-            throw new CustomException(ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED);
+            throw new CustomException(ErrorCode.GROUP_MEMBER_LIMIT_EXCEEDED,
+                    "그룹당 최대 " + MAX_MEMBERS_PER_GROUP + "명까지만 가입할 수 있습니다.");
         }
     }
 }

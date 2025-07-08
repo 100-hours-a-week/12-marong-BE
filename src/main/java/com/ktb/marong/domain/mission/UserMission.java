@@ -42,6 +42,9 @@ public class UserMission {
     @Column(name = "assigned_date", nullable = false)
     private LocalDate assignedDate;
 
+    @Column(name = "selection_type", nullable = false)
+    private String selectionType = "manual"; // auto: 자동할당, manual: 수동선택
+
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -51,12 +54,13 @@ public class UserMission {
     private LocalDateTime updatedAt;
 
     @Builder
-    public UserMission(User user, Long groupId, Mission mission, Integer week, LocalDate assignedDate) {
+    public UserMission(User user, Long groupId, Mission mission, Integer week, LocalDate assignedDate, String selectionType) {
         this.user = user;
         this.groupId = groupId; // 파라미터로 받은 groupId 사용
         this.mission = mission;
         this.week = week;
         this.assignedDate = assignedDate != null ? assignedDate : LocalDate.now();
+        this.selectionType = selectionType != null ? selectionType : "manual";
     }
 
     /**
@@ -86,5 +90,19 @@ public class UserMission {
      */
     public boolean isCompleted() {
         return "completed".equals(this.status);
+    }
+
+    /**
+     * 자동 할당 미션인지 확인
+     */
+    public boolean isAutoAssigned() {
+        return "auto".equals(this.selectionType);
+    }
+
+    /**
+     * 수동 선택 미션인지 확인
+     */
+    public boolean isManuallySelected() {
+        return "manual".equals(this.selectionType);
     }
 }

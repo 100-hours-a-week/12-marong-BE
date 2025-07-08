@@ -1028,20 +1028,46 @@ public class ManittoService {
     }
 
     /**
-     * 다음 마니또 매칭 공개(항상 월요일 오후 12시)까지 남은 시간 계산
+     * 현재 시간에 따라 다음 중요 시점까지 남은 시간 계산
+     * - 월요일 오후 12시 ~ 금요일 오후 5시: 가장 가까운 금요일 오후 5시까지 (마니또 공개까지)
+     * - 금요일 오후 5시 ~ 월요일 오후 12시: 가장 가까운 월요일 오후 12시까지 (새 매칭까지)
      * 형식: HH:MM:SS
      */
     private String calculateRemainingTimeUntilReveal() {
         LocalDateTime now = LocalDateTime.now();
+        DayOfWeek currentDay = now.getDayOfWeek();
+        LocalTime currentTime = now.toLocalTime();
 
-        // 이번 주 월요일 오후 12시 계산
-        LocalDateTime targetTime = now.with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
-                .with(LocalTime.of(12, 0, 0));
+        LocalDateTime targetTime;
 
-        // 이미 지났으면 다음 주 월요일로 설정
-        if (now.isAfter(targetTime)) {
-            targetTime = now.with(TemporalAdjusters.next(DayOfWeek.MONDAY))
-                    .with(LocalTime.of(12, 0, 0));
+        // 현재 시간이 "월요일 12시 ~ 금요일 17시" 일반 활동 기간인지 확인
+        boolean isInActiveWeekPeriod = false;
+
+        if (currentDay == DayOfWeek.MONDAY && currentTime.isAfter(LocalTime.of(12, 0)) || currentTime.equals(LocalTime.of(12, 0))) {
+            // 월요일 12시 이후
+            isInActiveWeekPeriod = true;
+        } else if (currentDay == DayOfWeek.TUESDAY || currentDay == DayOfWeek.WEDNESDAY || currentDay == DayOfWeek.THURSDAY) {
+            // 화수목 전체
+            isInActiveWeekPeriod = true;
+        } else if (currentDay == DayOfWeek.FRIDAY && currentTime.isBefore(LocalTime.of(17, 0))) {
+            // 금요일 17시 이전
+            isInActiveWeekPeriod = true;
+        }
+
+        if (isInActiveWeekPeriod) {
+            // 일반 활동 기간: 가장 가까운 금요일 17시까지
+            targetTime = now.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY))
+                    .with(LocalTime.of(17, 0, 0));
+        } else {
+            // 마니또 공개 기간: 가장 가까운 월요일 12시까지
+            if (currentDay == DayOfWeek.MONDAY && currentTime.isBefore(LocalTime.of(12, 0))) {
+                // 월요일 12시 이전이면 같은 날 12시
+                targetTime = now.with(LocalTime.of(12, 0, 0));
+            } else {
+                // 그 외는 다음 주 월요일 12시
+                targetTime = now.with(TemporalAdjusters.next(DayOfWeek.MONDAY))
+                        .with(LocalTime.of(12, 0, 0));
+            }
         }
 
         // 남은 시간 계산
