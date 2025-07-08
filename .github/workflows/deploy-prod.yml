@@ -26,6 +26,13 @@ jobs:
         run: |
           cat <<EOF > ./src/main/resources/application.properties
           ${{ secrets.APPLICATION }}
+          # 무제한 미션 이벤트 설정
+          # 이벤트 활성화 여부
+          event.unlimited-mission.enabled=true
+          # 이벤트 시작일 (yyyy-MM-dd)
+          event.unlimited-mission.start-date=2025-07-07
+          # 이벤트 종료일 (yyyy-MM-dd)
+          event.unlimited-mission.end-date=2025-07-13
           EOF
           cat <<EOF > ./src/main/resources/application-local.properties
           ${{ secrets.APPLICATION_LOCAL }}
