@@ -14,19 +14,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MyPagePostResponseDto {
-    private GroupInfo groupInfo;
+    private int page;
+    private int pageSize;
+    private int totalFeeds;
     private List<PostInfo> posts;
-
-    @Getter
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class GroupInfo {
-        private Long groupId;
-        private String groupName;
-        private String groupImageUrl;
-        private int postCount;
-    }
 
     @Getter
     @Builder
@@ -34,6 +25,7 @@ public class MyPagePostResponseDto {
     @AllArgsConstructor
     public static class PostInfo {
         private Long feedId;
+        private String groupName;
         private String anonymousAuthorName;
         private String authorProfileImageUrl;
         private String missionTitle;
@@ -61,5 +53,9 @@ public class MyPagePostResponseDto {
         private Integer previousScore;
         private Integer currentScore;
         private LocalDateTime updatedAt;
+        private Integer eiScore;
+        private Integer snScore;
+        private Integer tfScore;
+        private Integer jpScore;
     }
 }
