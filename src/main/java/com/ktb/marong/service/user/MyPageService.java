@@ -39,7 +39,7 @@ public class MyPageService {
      * 마이페이지용 사용자가 작성한 게시글 목록 조회 (그룹별로 묶어서)
      */
     @Transactional(readOnly = true)
-    public List<MyPagePostResponseDto> getMyPosts(Long userId, int page, int pageSize) {
+    public MyPagePostResponseDto getMyPosts(Long userId, int page, int pageSize) {
         log.info("마이페이지 그룹별 게시글 조회: userId={}, page={}, pageSize={}", userId, page, pageSize);
 
         // 1. 사용자 존재 확인
@@ -56,43 +56,16 @@ public class MyPageService {
         Map<Long, List<Post>> postsByGroup = postPage.getContent().stream()
                 .collect(Collectors.groupingBy(Post::getGroupId));
 
-        // 5. 그룹별 DTO 생성 (그룹별 최신 게시글 순으로 정렬)
-        return postsByGroup.entrySet().stream()
-                .map(entry -> {
-                    Long groupId = entry.getKey();
-                    List<Post> groupPosts = entry.getValue();
-
-                    // 그룹 정보 조회
-                    Group group = groupRepository.findById(groupId).orElse(null);
-
-                    MyPagePostResponseDto.GroupInfo groupInfo = null;
-                    if (group != null) {
-                        groupInfo = MyPagePostResponseDto.GroupInfo.builder()
-                                .groupId(group.getId())
-                                .groupName(group.getName())
-                                .groupImageUrl(group.getImageUrl())
-                                .postCount(groupPosts.size())
-                                .build();
-                    }
-
-                    // 해당 그룹의 게시글들을 PostInfo로 변환 (그룹 내에서는 최신순)
-                    List<MyPagePostResponseDto.PostInfo> postInfos = groupPosts.stream()
-                            .sorted((p1, p2) -> p2.getCreatedAt().compareTo(p1.getCreatedAt()))
-                            .map(post -> convertToPostInfo(post, userId))
-                            .collect(Collectors.toList());
-
-                    return MyPagePostResponseDto.builder()
-                            .groupInfo(groupInfo)
-                            .posts(postInfos)
-                            .build();
-                })
-                // 그룹들을 최신 게시글 기준으로 정렬
-                .sorted((g1, g2) -> {
-                    LocalDateTime latestTime1 = g1.getPosts().get(0).getCreatedAt();
-                    LocalDateTime latestTime2 = g2.getPosts().get(0).getCreatedAt();
-                    return latestTime2.compareTo(latestTime1);
-                })
+        List<MyPagePostResponseDto.PostInfo> postInfos = postPage.getContent().stream()
+                .map(post -> convertToPostInfo(post, userId))
                 .collect(Collectors.toList());
+
+        return MyPagePostResponseDto.builder()
+                .page(page)
+                .pageSize(pageSize)
+                .totalFeeds((int) postPage.getTotalElements())
+                .posts(postInfos)
+                .build();
     }
 
     /**
@@ -128,12 +101,17 @@ public class MyPageService {
                     .previousScore(mbtiUpdate.getPreviousScore())
                     .currentScore(mbtiUpdate.getCurrentScore())
                     .updatedAt(mbtiUpdate.getCreatedAt())
+                    .eiScore(mbtiUpdate.getEiScore())
+                    .snScore(mbtiUpdate.getSnScore())
+                    .tfScore(mbtiUpdate.getTfScore())
+                    .jpScore(mbtiUpdate.getJpScore())
                     .build();
         }
 
         // 4. PostInfo DTO 생성
         return MyPagePostResponseDto.PostInfo.builder()
                 .feedId(post.getId())
+                .groupName(userGroup.getGroup().getName())
                 .anonymousAuthorName(post.getAnonymousSnapshotName())
                 .authorProfileImageUrl(authorProfileImageUrl)
                 .missionTitle(post.getMission().getTitle())
