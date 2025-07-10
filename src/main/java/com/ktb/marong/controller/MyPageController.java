@@ -31,7 +31,7 @@ public class MyPageController {
         log.info("마이페이지 그룹별 피드 조회 요청: userId={}, page={}, pageSize={}", userId, page, pageSize);
 
         try {
-            List<MyPagePostResponseDto> groupedFeeds = myPageService.getMyPosts(userId, page, pageSize);
+            MyPagePostResponseDto groupedFeeds = myPageService.getMyPosts(userId, page, pageSize);
 
             return ResponseEntity.ok(ApiResponse.success(
                     groupedFeeds,
