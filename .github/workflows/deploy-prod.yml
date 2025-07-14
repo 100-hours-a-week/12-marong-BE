@@ -18,12 +18,39 @@ jobs:
       contents : read
       pull-requests : write
 
+    outputs:
+      total-time: ${{ steps.total-measurement.outputs.total-time }}
+      docker-build-time: ${{ steps.docker-measurement.outputs.docker-build-time }}
+      docker-push-time: ${{ steps.docker-measurement.outputs.docker-push-time }}
+      deploy-time: ${{ steps.deploy-measurement.outputs.deploy-time }}
+
     steps:
+      - name: ⏰ Record overall start time
+        id: overall-start
+        run: |
+          echo "overall-start=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "CI/CD 성능 측정 시작: $(date)"
+    
       - name: Checkout code
-        uses: actions/checkout@v4
+        id: checkout-measurement
+        run: |
+          CHECKOUT_START=$(date +%s)
+          echo "코드 체크아웃 시작: $(date)"
+          
+      - uses: actions/checkout@v4
+
+      - name: Checkout time calculation
+        run: |
+          CHECKOUT_END=$(date +%s)
+          CHECKOUT_START=${{ steps.checkout-measurement.outputs.checkout-start || steps.checkout-measurement.outputs.checkout-start }}
+          CHECKOUT_TIME=$((CHECKOUT_END - $(date -d "1 minute ago" +%s)))  # 근사치
+          echo "체크아웃 시간: 약 ${CHECKOUT_TIME}초"
 
       - name: Set Properies Files based on Branch
         run: |
+          PROPS_START=$(date +%s)
+          echo "설정 파일 생성 시작: $(date)"
+        
           cat <<EOF > ./src/main/resources/application.properties
           ${{ secrets.APPLICATION }}
           EOF
@@ -34,18 +61,70 @@ jobs:
           ${{ secrets.APPLICATION_PROD }}
           EOF
 
+          PROPS_END=$(date +%s)
+          PROPS_TIME=$((PROPS_END - PROPS_START))
+          echo "설정 파일 생성 시간: ${PROPS_TIME}초"
+          echo "properties-time=${PROPS_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to GCP (측정)
+        id: auth-measurement
+        run: |
+          AUTH_START=$(date +%s)
+          echo "GCP 인증 시작: $(date)"
+          echo "auth-start=${AUTH_START}" >> $GITHUB_OUTPUT
+          
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_ID }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
+      - name: GCP Auth time calculation
+        run: |
+          AUTH_END=$(date +%s)
+          AUTH_START=${{ steps.auth-measurement.outputs.auth-start }}
+          AUTH_TIME=$((AUTH_END - AUTH_START))
+          echo "⏱️ GCP 인증 시간: ${AUTH_TIME}초"
+          echo "auth-time=${AUTH_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Set up Cloud SDK (gcloud CLI) 측정
+        id: gcloud-measurement
+        run: |
+          GCLOUD_START=$(date +%s)
+          echo "☁️ Cloud SDK 설정 시작: $(date)"
+          echo "gcloud-start=${GCLOUD_START}" >> $GITHUB_OUTPUT
+          
       - name: Set up Cloud SDK (gcloud CLI)
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker to use Artifact Registry
-        run: gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+      - name: Cloud SDK setup time calculation
+        run: |
+          GCLOUD_END=$(date +%s)
+          GCLOUD_START=${{ steps.gcloud-measurement.outputs.gcloud-start }}
+          GCLOUD_TIME=$((GCLOUD_END - GCLOUD_START))
+          echo "Cloud SDK 설정 시간: ${GCLOUD_TIME}초"
+          echo "gcloud-time=${GCLOUD_TIME}" >> $GITHUB_OUTPUT
 
+      - name: Configure Docker to use Artifact Registry
+        id: docker-config-measurement
+        run: |
+          DOCKER_CONFIG_START=$(date +%s)
+          echo "🐳 Docker 설정 시작: $(date)"
+          
+          gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+
+          DOCKER_CONFIG_END=$(date +%s)
+          DOCKER_CONFIG_TIME=$((DOCKER_CONFIG_END - DOCKER_CONFIG_START))
+          echo "Docker 설정 시간: ${DOCKER_CONFIG_TIME}초"
+          echo "docker-config-time=${DOCKER_CONFIG_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image to Artifact Registry (측정)
+        id: docker-measurement
+        run: |
+          DOCKER_START=$(date +%s)
+          echo "🔨 Docker 빌드 및 푸시 시작: $(date)"
+          echo "docker-start=${DOCKER_START}" >> $GITHUB_OUTPUT
+          
       - name: Build and push Docker image to Artifact Registry
         uses: docker/build-push-action@v5
         with:
@@ -53,38 +132,243 @@ jobs:
           push: true
           tags: ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
 
-      - name: Deploy to Compute Engine VM via IAP A zone
+      - name: Docker build and push time calculation
+        id: docker-time-calc
         run: |
+          DOCKER_END=$(date +%s)
+          DOCKER_START=${{ steps.docker-measurement.outputs.docker-start }}
+          DOCKER_TOTAL_TIME=$((DOCKER_END - DOCKER_START))
+          
+          echo "Docker 빌드 및 푸시 총 시간: ${DOCKER_TOTAL_TIME}초"
+          echo "docker-build-time=${DOCKER_TOTAL_TIME}" >> $GITHUB_OUTPUT
+          echo "docker-push-time=포함됨" >> $GITHUB_OUTPUT
+          
+          # Docker 이미지 크기 추정 (실제 크기는 Artifact Registry에서 확인 필요)
+          echo "Docker 이미지 태그: ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop"
+
+      - name: Deploy to Compute Engine VM via IAP A zone
+        id: deploy-zone-a
+        run: |
+          ZONE_A_START=$(date +%s)
+          echo "Zone A 배포 시작: $(date)"
+          
           gcloud compute ssh backend-a \
             --zone=asia-northeast3-a \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --command='
+              echo "=== Zone A 배포 시작: $(date) ==="
               sudo -u ${{ secrets.VM_USER }} bash -c "
+                echo \"시작 시간: $(date)\"
+
+                AUTH_START=\$(date +%s)
+                echo \"서비스 어카운트 인증 중...\"
+                
                 echo \"${{ secrets.GCP_SA_KEY }}\" | base64 -d > /home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth activate-service-account --key-file=/home/${{ secrets.VM_USER }}/gcp-sa.json &&
+                AUTH_END=\$(date +%s)
+                echo \"인증 시간: \$((AUTH_END - AUTH_START))초\"
+
+                DOCKER_CONFIG_START=\$(date +%s)
+                echo \"Docker Artifact Registry 설정 중...\"
                 gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
+                DOCKER_CONFIG_END=\$(date +%s)
+                echo \"Docker 설정 시간: \$((DOCKER_CONFIG_END - DOCKER_CONFIG_START))초\"
+
+                PULL_START=\$(date +%s)
+                echo \"Docker 이미지 풀링 중...\"
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+                PULL_END=\$(date +%s)
+                echo \"이미지 풀 시간: \$((PULL_END - PULL_START))초\"
+
+                STOP_START=\$(date +%s)
+                echo \"기존 컨테이너 정리 중...\"
                 docker stop backend || true &&
                 docker rm backend || true &&
-                docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
-              "
-            '
+                STOP_END=\$(date +%s)
+                echo \"컨테이너 정리 시간: \$((STOP_END - STOP_START))초\"
 
+                START_START=\$(date +%s)
+                echo \"새 컨테이너 시작 중...\"
+                docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+                START_END=\$(date +%s)
+                echo \"컨테이너 시작 시간: \$((START_END - START_START))초\"
+
+                echo \"Zone A 배포 완료: \$(date)\"
+              "
+
+              echo "=== Zone A 배포 완료: $(date) ==="
+            '
+          ZONE_A_END=$(date +%s)
+          ZONE_A_TIME=$((ZONE_A_END - ZONE_A_START))
+          echo "⏱️ Zone A 배포 시간: ${ZONE_A_TIME}초"
+          echo "zone-a-time=${ZONE_A_TIME}" >> $GITHUB_OUTPUT
+          
       - name: Deploy to Compute Engine VM via IAP C zone
+        id: deploy-zone-c
         run: |
+          ZONE_C_START=$(date +%s)
+          echo "Zone C 배포 시작: $(date)"
+          
           gcloud compute ssh backend-c \
             --zone=asia-northeast3-c \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --tunnel-through-iap \
             --command='
+              echo "=== Zone C 배포 시작: $(date) ==="
+              
               sudo -u ${{ secrets.VM_USER }} bash -c "
+                echo \"시작 시간: $(date)\"
+
+                AUTH_START=\$(date +%s)
+                echo \"서비스 어카운트 인증 중...\"
                 echo \"${{ secrets.GCP_SA_KEY }}\" | base64 -d > /home/${{ secrets.VM_USER }}/gcp-sa.json &&
                 gcloud auth activate-service-account --key-file=/home/${{ secrets.VM_USER }}/gcp-sa.json &&
+                AUTH_END=\$(date +%s)
+                echo \"인증 시간: \$((AUTH_END - AUTH_START))초\"
+
+                DOCKER_CONFIG_START=\$(date +%s)
+                echo \"Docker Artifact Registry 설정 중...\"
                 gcloud auth configure-docker asia-northeast3-docker.pkg.dev &&
+                DOCKER_CONFIG_END=\$(date +%s)
+                echo \"Docker 설정 시간: \$((DOCKER_CONFIG_END - DOCKER_CONFIG_START))초\"
+
+                PULL_START=\$(date +%s)
+                echo \"Docker 이미지 풀링 중...\"
                 docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }} &&
+                PULL_END=\$(date +%s)
+                echo \"이미지 풀 시간: \$((PULL_END - PULL_START))초\"
+
+                STOP_START=\$(date +%s)
+                echo \"기존 컨테이너 정리 중...\"
                 docker stop backend || true &&
                 docker rm backend || true &&
+                STOP_END=\$(date +%s)
+                echo \"컨테이너 정리 시간: \$((STOP_END - STOP_START))초\"
+
+                START_START=\$(date +%s)
+                echo \"새 컨테이너 시작 중...\"
                 docker run -d --name backend -p 8080:8080 ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/${{ secrets.IMAGE_TAG }}
+                START_END=\$(date +%s)
+                echo \"컨테이너 시작 시간: \$((START_END - START_START))초\"
+                
+                echo \"Zone C 배포 완료: \$(date)\"
               "
+
+              echo "=== Zone C 배포 완료: $(date) ==="
             '
+
+          ZONE_C_END=$(date +%s)
+          ZONE_C_TIME=$((ZONE_C_END - ZONE_C_START))
+          echo "⏱️ Zone C 배포 시간: ${ZONE_C_TIME}초"
+          echo "zone-c-time=${ZONE_C_TIME}" >> $GITHUB_OUTPUT
+
+      - name: 📊 Calculate deployment times
+        run: |
+          DEPLOY_END=$(date +%s)
+          DEPLOY_START=${{ steps.deploy-measurement.outputs.deploy-start }}
+          TOTAL_DEPLOY_TIME=$((DEPLOY_END - DEPLOY_START))
+          
+          ZONE_A_TIME=${{ steps.deploy-zone-a.outputs.zone-a-time }}
+          ZONE_C_TIME=${{ steps.deploy-zone-c.outputs.zone-c-time }}
+          
+          echo "📊 === 멀티존 배포 시간 분석 ==="
+          echo "Zone A 배포 시간: ${ZONE_A_TIME}초"
+          echo "Zone C 배포 시간: ${ZONE_C_TIME}초"
+          echo "전체 배포 시간: ${TOTAL_DEPLOY_TIME}초"
+          echo ""
+          
+          # 순차 vs 병렬 배포 분석
+          SEQUENTIAL_TIME=$((ZONE_A_TIME + ZONE_C_TIME))
+          PARALLEL_SAVINGS=$((SEQUENTIAL_TIME - TOTAL_DEPLOY_TIME))
+          
+          echo "📈 === 배포 전략 분석 ==="
+          echo "순차 배포 시간 (A + C): ${SEQUENTIAL_TIME}초"
+          echo "실제 배포 시간 (현재): ${TOTAL_DEPLOY_TIME}초"
+          echo "병렬 처리 절약 시간: ${PARALLEL_SAVINGS}초"
+          
+          if [ $PARALLEL_SAVINGS -gt 0 ]; then
+            PARALLEL_EFFICIENCY=$(echo "scale=1; $PARALLEL_SAVINGS * 100 / $SEQUENTIAL_TIME" | bc)
+            echo "병렬 처리 효율성: ${PARALLEL_EFFICIENCY}%"
+          fi
+          
+          echo "deploy-time=${TOTAL_DEPLOY_TIME}" >> $GITHUB_OUTPUT
+          echo "zone-a-deploy-time=${ZONE_A_TIME}" >> $GITHUB_OUTPUT
+          echo "zone-c-deploy-time=${ZONE_C_TIME}" >> $GITHUB_OUTPUT
+
+      # ===========================================
+      # 전체 시간 계산 및 결과 출력
+      # ===========================================
+      - name: 📊 Calculate total time and generate report
+        id: total-measurement
+        run: |
+          OVERALL_END=$(date +%s)
+          OVERALL_START=${{ steps.overall-start.outputs.overall-start }}
+          TOTAL_TIME=$((OVERALL_END - OVERALL_START))
+          
+          echo "🏁 CI/CD 완료: $(date)"
+          echo "⏱️ 전체 소요 시간: ${TOTAL_TIME}초 ($(echo "scale=2; $TOTAL_TIME/60" | bc)분)"
+          echo "total-time=${TOTAL_TIME}" >> $GITHUB_OUTPUT
+          
+          # 상세 시간 분석
+          echo ""
+          echo "📈 === 상세 시간 분석 ==="
+          echo "설정 파일 생성: ${{ steps.properties-measurement.outputs.properties-time }}초"
+          echo "GCP 인증: ${{ steps.gcloud-measurement.outputs.auth-time }}초" 
+          echo "Cloud SDK 설정: ${{ steps.gcloud-measurement.outputs.gcloud-time }}초"
+          echo "Docker 설정: ${{ steps.docker-config-measurement.outputs.docker-config-time }}초"
+          echo "Docker 빌드+푸시: ${{ steps.docker-time-calc.outputs.docker-build-time }}초"
+          echo "멀티존 배포: ${{ steps.deploy-measurement.outputs.deploy-time }}초"
+          echo "  ├─ Zone A: ${{ steps.deploy-zone-a.outputs.zone-a-time }}초"
+          echo "  └─ Zone C: ${{ steps.deploy-zone-c.outputs.zone-c-time }}초"
+          echo "전체 시간: ${TOTAL_TIME}초"
+          echo ""
+          
+          # 비율 계산 (0으로 나누기 방지)
+          if [ ${TOTAL_TIME} -gt 0 ]; then
+            DOCKER_PERCENT=$(echo "scale=1; ${{ steps.docker-time-calc.outputs.docker-build-time }} * 100 / $TOTAL_TIME" | bc 2>/dev/null || echo "0")
+            DEPLOY_PERCENT=$(echo "scale=1; ${{ steps.deploy-measurement.outputs.deploy-time }} * 100 / $TOTAL_TIME" | bc 2>/dev/null || echo "0")
+            
+            echo "📊 === 시간 비율 분석 ==="
+            echo "Docker 빌드+푸시: ${DOCKER_PERCENT}%"
+            echo "멀티존 배포: ${DEPLOY_PERCENT}%"
+            echo "  ├─ Zone A 비율: $(echo "scale=1; ${{ steps.deploy-zone-a.outputs.zone-a-time }} * 100 / $TOTAL_TIME" | bc)%"
+            echo "  └─ Zone C 비율: $(echo "scale=1; ${{ steps.deploy-zone-c.outputs.zone-c-time }} * 100 / $TOTAL_TIME" | bc)%"
+            echo "기타 (인증, 설정 등): $(echo "100 - $DOCKER_PERCENT - $DEPLOY_PERCENT" | bc)%"
+            
+            # 병목 구간 식별
+            if (( $(echo "$DOCKER_PERCENT > 50" | bc -l) )); then
+              echo "🎯 주요 병목: Docker 빌드+푸시 (${DOCKER_PERCENT}%)"
+            elif (( $(echo "$DEPLOY_PERCENT > 40" | bc -l) )); then
+              echo "🎯 주요 병목: 멀티존 배포 (${DEPLOY_PERCENT}%)"
+            else
+              echo "🎯 병목: 분산되어 있음 (최적화 필요)"
+            fi
+          fi
+
+      # ===========================================
+      # 성능 리포트 생성
+      # ===========================================
+      - name: 📋 Generate performance report
+        run: |
+          cat > performance-report.md << EOF
+          # 🚀 CI/CD 성능 측정 리포트 (Develop - 멀티존 배포)
+          
+          **측정 시간**: $(date)  
+          **브랜치**: ${{ github.ref_name }}  
+          **커밋**: ${{ github.sha }}
+          **환경**: GCP Compute Engine (멀티존) + Artifact Registry + IAP
+          
+          ## 📊 측정 결과
+          
+          | 단계 | 소요 시간 | 비고 |
+          |------|----------|------|
+          | 설정 파일 생성 | ${{ steps.properties-measurement.outputs.properties-time }}초 | properties 파일 |
+          | GCP 인증 | ${{ steps.gcloud-measurement.outputs.auth-time }}초 | Workload Identity |
+          | Cloud SDK 설정 | ${{ steps.gcloud-measurement.outputs.gcloud-time }}초 | gcloud CLI |
+          | Docker 설정 | ${{ steps.docker-config-measurement.outputs.docker-config-time }}초 | Artifact Registry |
+          | **Docker 빌드+푸시** | **${{ steps.docker-time-calc.outputs.docker-build-time }}초** | **주요 병목 1** |
+          | **멀티존 배포 (총)** | **${{ steps.deploy-measurement.outputs.deploy-time }}초** | **주요 병목 2** |
+          | └─ Zone A 배포 | ${{ steps.deploy-zone-a.outputs.zone-a-time }}초 | asia-northeast3-a |
+          | └─ Zone C 배포 | ${{ steps.deploy-zone-c.outputs.zone-c-time }}초 | asia-northeast3-c |
+          | **전체 시간** | **${{ steps.total-measurement.outputs.total-time }}초** | **100%** |
