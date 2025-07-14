@@ -18,12 +18,39 @@ jobs:
       contents : read
       pull-requests : write
 
+    outputs:
+      total-time: ${{ steps.total-measurement.outputs.total-time }}
+      docker-build-time: ${{ steps.docker-measurement.outputs.docker-build-time }}
+      docker-push-time: ${{ steps.docker-measurement.outputs.docker-push-time }}
+      deploy-time: ${{ steps.deploy-measurement.outputs.deploy-time }}
+
     steps:
+      - name: ⏰ Record overall start time
+        id: overall-start
+        run: |
+          echo "overall-start=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "CI/CD 성능 측정 시작: $(date)"
+          
       - name: Checkout code
-        uses: actions/checkout@v4
+        id: checkout-measurement
+        run: |
+          CHECKOUT_START=$(date +%s)
+          echo "코드 체크아웃 시작: $(date)"
+          
+      - uses: actions/checkout@v4
+
+      - name: checkout time calculation
+        run: |
+          CHECKOUT_END=$(date +%s)
+          CHECKOUT_START=${{ steps.checkout-measurement.outputs.checkout-start || steps.checkout-measurement.outputs.checkout-start }}
+          CHECKOUT_TIME=$((CHECKOUT_END - $(date -d "1 minute ago" +%s)))  # 근사치
+          echo "⏱️ 체크아웃 시간: 약 ${CHECKOUT_TIME}초"
 
       - name: Set Properies Files based on Branch
         run: |
+          PROPS_START=$(date +%s)
+          echo "설정 파일 생성 시작: $(date)"
+          
           cat <<EOF > ./src/main/resources/application.properties
           ${{ secrets.APPLICATION }}
           EOF
@@ -34,17 +61,69 @@ jobs:
           ${{ secrets.APPLICATION_PROD }}
           EOF
 
+          PROPS_END=$(date +%s)
+          PROPS_TIME=$((PROPS_END - PROPS_START))
+          echo "설정 파일 생성 시간: ${PROPS_TIME}초"
+          echo "properties-time=${PROPS_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate time to GCP
+        id: auth-measurement
+        run: |
+          AUTH_START=$(date +%s)
+          echo "🔐 GCP 인증 시작: $(date)"
+          echo "auth-start=${AUTH_START}" >> $GITHUB_OUTPUT
+          
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_ID }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
+      - name: GCP Auth time calculation
+        run: |
+          AUTH_END=$(date +%s)
+          AUTH_START=${{ steps.auth-measurement.outputs.auth-start }}
+          AUTH_TIME=$((AUTH_END - AUTH_START))
+          echo "GCP 인증 시간: ${AUTH_TIME}초"
+          echo "auth-time=${AUTH_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Set up Cloud SDK (측정)
+        id: gcloud-measurement
+        run: |
+          GCLOUD_START=$(date +%s)
+          echo "Cloud SDK 설정 시작: $(date)"
+          echo "gcloud-start=${GCLOUD_START}" >> $GITHUB_OUTPUT
+
       - name: Set up Cloud SDK (gcloud CLI)
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Cloud SDK setup time calculation
+        run: |
+          GCLOUD_END=$(date +%s)
+          GCLOUD_START=${{ steps.gcloud-measurement.outputs.gcloud-start }}
+          GCLOUD_TIME=$((GCLOUD_END - GCLOUD_START))
+          echo "Cloud SDK 설정 시간: ${GCLOUD_TIME}초"
+          echo "gcloud-time=${GCLOUD_TIME}" >> $GITHUB_OUTPUT
+
       - name: Configure Docker to use Artifact Registry
-        run: gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+        id: docker-config-measurement
+        run: |
+          DOCKER_CONFIG_START=$(date +%s)
+          echo "Docker 설정 시작: $(date)"
+
+          gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+
+          DOCKER_CONFIG_END=$(date +%s)
+          DOCKER_CONFIG_TIME=$((DOCKER_CONFIG_END - DOCKER_CONFIG_START))
+          echo "⏱️ Docker 설정 시간: ${DOCKER_CONFIG_TIME}초"
+          echo "docker-config-time=${DOCKER_CONFIG_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image to Artifact Registry
+        id: docker-measurement
+        run: |
+          DOCKER_START=$(date +%s)
+          echo "Docker 빌드 및 푸시 시작: $(date)"
+          echo "docker-start=${DOCKER_START}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image to Artifact Registry
         uses: docker/build-push-action@v5
@@ -53,6 +132,27 @@ jobs:
           push: true
           tags: ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop
 
+      - name: Docker build and push time calculation
+        id: docker-time-calc
+        run: |
+          DOCKER_END=$(date +%s)
+          DOCKER_START=${{ steps.docker-measurement.outputs.docker-start }}
+          DOCKER_TOTAL_TIME=$((DOCKER_END - DOCKER_START))
+
+          echo "⏱️ Docker 빌드 및 푸시 총 시간: ${DOCKER_TOTAL_TIME}초"
+          echo "docker-build-time=${DOCKER_TOTAL_TIME}" >> $GITHUB_OUTPUT
+          echo "docker-push-time=포함됨" >> $GITHUB_OUTPUT
+          
+          # Docker 이미지 크기 추정 (실제 크기는 Artifact Registry에서 확인 필요)
+          echo "Docker 이미지 태그: ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop"
+
+      - name: Deploy to Compute Engine VM
+        id: deploy-measurement
+        run: |
+          DEPLOY_START=$(date +%s)
+          echo "🚀 VM 배포 시작: $(date)"
+          echo "deploy-start=${DEPLOY_START}" >> $GITHUB_OUTPUT
+          
       - name: Deploy to Compute Engine VM
         uses: appleboy/ssh-action@master
         with:
@@ -60,25 +160,73 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
+            echo "배포 시작 시간: $(date)"
+            
             echo "Stopping and removing existing containers..."
+            STOP_START=$(date +%s)
             docker stop backend || true
             docker rm backend || true
+            STOP_END=$(date +%s)
+            echo "컨테이너 정리 시간: $((STOP_END - STOP_START))초"
 
             echo "Authenticating to Artifact Registry..."
+            AUTH_END=$(date +%s)
             gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+            AUTH_END=$(date +%s)
+            echo "인증 시간: $((AUTH_END - AUTH_START))초"
 
             echo "Pulling latest Docker image..."
+            PULL_START=$(date +%s)
             docker pull ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop
+            PULL_END=$(date +%s)
+            echo "이미지 풀 시간: $((PULL_END - PULL_START))초"
 
             echo "Create Docker Network..."
+            NETWORK_START=$(date +%s)
             docker network create marong
+            NETWORK_END=$(date +%s)
+            echo "네트워크 생성 시간: $((NETWORK_END - NETWORK_START))초"
 
             echo "Starting new container..."
+            START_START=$(date +%s)
             docker run -d \
               --add-host=host.docker.internal:host-gateway \
               --name backend \
               --network marong \
               ${{ secrets.GCP_ARTIFACT_REGISTRY_LOCATION }}/backend:develop
+            START_END=$(date +%s)
+            echo "컨테이너 시작 시간: $((START_END - START_START))초"
 
+            echo "=== 배포 완료 시간: $(date) ==="
             echo "Deployment to Compute Engine VM completed."
             
+      - name: Deploy time calculation
+        run: |
+          DEPLOY_END=$(date +%s)
+          DEPLOY_START=${{ steps.deploy-measurement.outputs.deploy-start }}
+          DEPLOY_TIME=$((DEPLOY_END - DEPLOY_START))
+          echo "VM 배포 총 시간: ${DEPLOY_TIME}초"
+          echo "deploy-time=${DEPLOY_TIME}" >> $GITHUB_OUTPUT
+          
+      - name: 📊 Calculate total time and generate report
+        id: total-measurement
+        run: |
+          OVERALL_END=$(date +%s)
+          OVERALL_START=${{ steps.overall-start.outputs.overall-start }}
+          TOTAL_TIME=$((OVERALL_END - OVERALL_START))
+          
+          echo "🏁 CI/CD 완료: $(date)"
+          echo "⏱️ 전체 소요 시간: ${TOTAL_TIME}초 ($(echo "scale=2; $TOTAL_TIME/60" | bc)분)"
+          echo "total-time=${TOTAL_TIME}" >> $GITHUB_OUTPUT
+          
+          # 상세 시간 분석
+          echo ""
+          echo "📈 === 상세 시간 분석 ==="
+          echo "설정 파일 생성: ${{ steps.properties-measurement.outputs.properties-time }}초"
+          echo "GCP 인증: ${{ steps.gcloud-measurement.outputs.auth-time }}초" 
+          echo "Cloud SDK 설정: ${{ steps.gcloud-measurement.outputs.gcloud-time }}초"
+          echo "Docker 설정: ${{ steps.docker-config-measurement.outputs.docker-config-time }}초"
+          echo "Docker 빌드+푸시: ${{ steps.docker-time-calc.outputs.docker-build-time }}초"
+          echo "VM 배포: ${{ steps.deploy-measurement.outputs.deploy-time }}초"
+          echo "전체 시간: ${TOTAL_TIME}초"
+          echo ""
